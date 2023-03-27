@@ -5,7 +5,8 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-
+#include <arpa/inet.h>
+#include <unistd.h>
 #include "include/global.h"
 
 uint16_t PSEUDO_LEN = 10;
