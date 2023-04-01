@@ -6,5 +6,5 @@
 
 #define CODEREQ '1' // code de requête
 #define ID '0' // identifiant unique
-#define ENT_SIZE 16
+#define PSEUDO_LEN 10 
 #endif

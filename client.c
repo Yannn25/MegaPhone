@@ -5,26 +5,39 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-
+#include <arpa/inet.h>
+#include <unistd.h>
 #include "include/global.h"
 
-uint16_t PSEUDO_LEN = 10;
 
-char * gestion_pseudo() {
+void gestion_inscription(int sock) {
+    // Entête du message client
+    uint16_t header = htons((ID << 5) | (CODEREQ & 0x1F));
     char *ret = malloc(PSEUDO_LEN);
+    printf("Veuillez entrer un pseudo :\n");
     while(1) {
-        //memset(ret, 0, PSEUDO_LEN);
         scanf("%s", ret);
-        if(strlen(ret) <= 10 || strcmp(ret,"") != 0)
+        if(strlen(ret) <= PSEUDO_LEN)
             break;
-        else
-            printf("Le pseudo choisi est trop long recommencez :\n");
+        else {
+            memset(ret, 0, strlen(ret));
+            printf("Le pseudo choisi est trop long recommencez:\n");
+        }   
     }
     for (int i = strlen(ret); i < PSEUDO_LEN; i++) {
         ret[i] = '#';
     }
     printf("val de pseudo : %s\n", ret);
-    return ret;
+    int snd = send(sock, &header, sizeof(header), 0);  // envoi de l'entête
+    if(snd < 0) {
+        perror("Erreur d'envoi ... \n");
+        exit(EXIT_FAILURE);
+    }
+    snd = send(sock,ret,PSEUDO_LEN,0);
+     if(snd < 0) {
+        perror("Erreur d'envoi ... \n");
+        exit(EXIT_FAILURE);
+    }
 }
 
 int main(int argc, char **argv) {
@@ -48,40 +61,42 @@ int main(int argc, char **argv) {
         perror("failure on connection...\n");
         exit(EXIT_FAILURE);
     }
-    printf("Connected to server\nVeuillez envoyez votre requete :\n");
-    // Entête du message client
-    char header[2] = {CODEREQ, ID}; // CODEREQ et ID sont des entiers de 1 octet
-    uint16_t header_length = sizeof(header);
-    char *pseudo = gestion_pseudo();
-    // Concaténer l'entête et le pseudo
-    char *message = malloc(header_length + PSEUDO_LEN + 1);
-    memcpy(message, header, header_length);
-    char *message_ptr = message;  // Déclaration du pointeur pour l'entête
-    message_ptr += header_length;  // On déplace le pointeur à la fin de l'entête
-    memcpy(message_ptr, pseudo, PSEUDO_LEN);
-    //memset(message + header_length + PSEUDO_LEN, '\0', 1);
-    uint16_t msg_length = strlen(message);  // La longueur de la chaîne de caractères
-    uint16_t big_endian_length = htons(msg_length);  // La longueur en format big-endian
-    char encoded_msg[ENT_SIZE];  
-    memcpy(encoded_msg + sizeof(big_endian_length), message, msg_length);  // Copie la chaîne de caractères
+    //accueil utilisateur
+    uint16_t client_id;
+    printf("Connected to server\nBienvenue sur le protocole Mégaphone\nVeuillez entrer votre ID(0 si première connexion):\n");
+    scanf("%hu", &client_id);
+    if(client_id == 0)
+        gestion_inscription(sock);
+    else {
+        printf("Requete non gerer pour le moment ...\n");
+        close(sock);
+        return 0;
+    }
+        
 
-    printf("Message client : %s\n", message);
-    int snd = send(sock, message, sizeof(message), 0);
-    if(snd < 0) {
-        perror("Erreur d'envoi ... \n");
+    // Réception de la réponse du serveur
+    uint16_t response_header[2];
+    uint8_t code_req, num_fil;
+    uint16_t response_id, nb;
+
+    if (recv(sock, response_header, sizeof(response_header), 0) == -1) {
+        perror("Erreur lors de la réception de la réponse du serveur");
         exit(EXIT_FAILURE);
     }
 
-    //Lecture du message recue
-    char *bufrec = malloc(sizeof(char) * 12);//a remplacer en bits et non char
-    memset(&bufrec, 0, sizeof(bufrec));
-    int rec = recv(sock,bufrec,sizeof(bufrec),0);
-    if(rec < 0) {
-        perror("Erreur de réception...\n");
+    code_req = ntohs(response_header[0]);
+    response_id = ntohs(response_header[1]);
+    printf("Received message :\nCode de requête -> %u\nID client(garder l'id) -> %u\n",code_req,response_id);
+    
+    if (recv(sock, &num_fil, sizeof(num_fil), 0) == -1) {
+        perror("Erreur lors de la réception de la réponse du serveur");
         exit(EXIT_FAILURE);
     }
-    bufrec[rec] = '\0';
-    printf("Received message (garder l'id): %s\n", bufrec);
+    if (recv(sock, &nb, sizeof(nb), 0) == -1) {
+        perror("Erreur lors de la réception de la réponse du serveur");
+        exit(EXIT_FAILURE);
+    }
+    printf("Numéro de fil -> %u\nNB -> %u\n", num_fil, nb);
 
     close(sock);
     return 0;
