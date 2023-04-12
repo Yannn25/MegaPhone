@@ -4,7 +4,7 @@
 #define PORT 7777
 #define ADDR "lulu"
 
-#define CODEREQ '1' // code de requête
-#define ID '0' // identifiant unique
+#define CODEREQ  // code de requête
+#define ID  // identifiant unique
 #define PSEUDO_LEN 10 
 #endif
