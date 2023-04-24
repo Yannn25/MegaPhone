@@ -14,7 +14,7 @@
 
 void gestion_inscription(int sock, int id, int codereq) {
     // Entête du message client
-    uint16_t header = htons((id << 5) | (codereq & 0x1F));
+    uint16_t header = htons(((u_int16_t)id << 5) | ((uint16_t)codereq & 0x1F));
     printf("HEADER : %hu\n",header);
     char ret[10 + 1]; // +1 pour le caractère de fin de chaîne
     printf("Veuillez entrer un pseudo :\n");
@@ -41,6 +41,14 @@ void gestion_inscription(int sock, int id, int codereq) {
         perror("Erreur d'envoi ... \n");
         exit(EXIT_FAILURE);
     }
+}
+void post_bil(int sock, int client_id, int codereq) {
+    // Entête du message client
+    uint16_t header = htons(((u_int16_t)client_id << 5) | ((uint16_t)codereq & 0x1F));
+    printf("HEADER : %hu\n",header);
+    char ret[10 + 1]; // +1 pour le caractère de fin de chaîne
+    printf("Veuillez entrer un pseudo :\n");
+    scanf("%s", ret);
 }
 
 void reception_inscription(int sock) {
@@ -69,16 +77,29 @@ void reception_inscription(int sock) {
     printf("Numéro de fil -> %u\nNB -> %u\n", num_fil, nb);
 }
 
-int not_req(u_int8_t req){
-    return req != 1 || req != 2 || req != 3 || req != 4 || req != 5 || req != 6;
-}
 
 void print_help() {
     printf("Les requetes suivantes sont de la forme :\n1 - ...\n");
 }
 
 void gestion_req(int sock,int client_id,int codereq) {
-    printf("Non gérer...\n");
+    switch (codereq) {
+        case 2:
+            post_bil(sock,client_id,codereq);
+            break;
+        case 3:
+            break;
+        case 4:
+            break;
+        case 5:
+            break;
+        case 6:
+            break;
+        default :
+            print_help();
+            break;
+    }
+
 }
 void reception_msg(int sock) {
     printf("Non gérer...\n");
@@ -112,23 +133,17 @@ int main(int argc, char **argv) {
     scanf("%hu", &client_id);
     if(client_id == 0) {
         codereq = 1;
+        printf("id : %hu\nreq: %hu\n", client_id, codereq);
         gestion_inscription(sock, client_id, codereq);
         reception_inscription(sock);
     } 
 
-    while (1){
-        printf("Quel est l'objet de votre requete ?\n");
-        scanf("%hhu", &codereq);
-        //printf("codereq : %hu\n",codereq);
-        if(codereq == 0) {
-            break;
-        }
-        if(not_req(codereq)) {
-            print_help();
-        }
-        gestion_req(sock,client_id, codereq);
-        reception_msg(sock);
-    }
+    printf("Quel est l'objet de votre requete ?\n");
+    scanf("hhuformat :%hhu\n", &codereq);
+    printf("codereq : %hu\nint format: %u", codereq, (unsigned int)codereq);
+    gestion_req(sock,client_id, codereq);
+    reception_msg(sock);
+
     
     close(sock);
     return 0;
