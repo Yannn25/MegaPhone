@@ -10,6 +10,24 @@
 #include <pthread.h>
 #include "include/global.h"
 
+#include <ctype.h>
+
+void print_buffer(const char *buffer, int size)
+{
+    printf("Buffer content (size = %d):\n", size);
+    for (int i = 0; i < size; i++)
+    {
+        if (isprint(buffer[i]))
+        {
+            printf("%c ", buffer[i]);
+        }
+        else
+        {
+            printf("%02X ", (unsigned char)buffer[i]);
+        }
+    }
+    printf("\n");
+}
 typedef struct
 {
     uint32_t id;
@@ -24,6 +42,38 @@ typedef struct
 
 ListeUtilisateurs liste_utilisateurs = {NULL, 0};
 uint32_t dernier_id = 0;
+
+typedef struct Billet
+{
+    uint32_t user_id;
+    char message[MESSAGE_LEN];
+    struct Billet *next;
+} Billet;
+
+typedef struct Fil
+{
+    char num_fichier[PSEUDO_LEN];
+    Billet *billet;
+    struct Fil *next;
+} Fil;
+
+Fil *fils = NULL;
+
+int utilisateur_existe(uint32_t id, const char *pseudo)
+{
+    int pseudo_len = strlen(pseudo); // Ajoutez cette ligne pour obtenir la longueur réelle du pseudo
+    for (int i = 0; i < liste_utilisateurs.nombre; i++)
+    {
+        if (liste_utilisateurs.utilisateurs[i].id == id &&
+            strlen(liste_utilisateurs.utilisateurs[i].pseudo) == pseudo_len &&           // Ajoutez cette ligne pour vérifier si les longueurs des pseudos sont égales
+            strncmp(liste_utilisateurs.utilisateurs[i].pseudo, pseudo, pseudo_len) == 0) // Modifiez cette ligne pour comparer les pseudos avec la même longueur
+        {
+            return 1;
+        }
+        printf("Vérification de l'utilisateur: ID: %u, Pseudo: %s\n", liste_utilisateurs.utilisateurs[i].id, liste_utilisateurs.utilisateurs[i].pseudo);
+    }
+    return 0;
+}
 
 uint32_t inscrire_utilisateur(const char *pseudo)
 {
@@ -45,6 +95,53 @@ uint32_t inscrire_utilisateur(const char *pseudo)
     return utilisateur.id;
 }
 
+void ajouter_billet(uint32_t user_id, const char *num_fichier, const char *message_billet)
+{
+    Fil *fil = NULL;
+
+    // Rechercher le fil existant ou en créer un nouveau
+    for (Fil *temp = fils; temp != NULL; temp = temp->next)
+    {
+        if (strcmp(temp->num_fichier, num_fichier) == 0)
+        {
+            fil = temp;
+            break;
+        }
+    }
+
+    if (fil == NULL)
+    {
+        fil = (Fil *)malloc(sizeof(Fil));
+        strncpy(fil->num_fichier, num_fichier, PSEUDO_LEN);
+        fil->billet = NULL;
+        fil->next = fils;
+        fils = fil;
+    }
+
+    // Créer un nouveau billet
+    Billet *nouveau_billet = (Billet *)malloc(sizeof(Billet));
+    nouveau_billet->user_id = user_id;
+    strncpy(nouveau_billet->message, message_billet, MESSAGE_LEN);
+    nouveau_billet->next = NULL;
+
+    // Ajouter le billet à la fin du fil
+    if (fil->billet == NULL)
+    {
+        fil->billet = nouveau_billet;
+    }
+    else
+    {
+        Billet *temp = fil->billet;
+        while (temp->next != NULL)
+        {
+            temp = temp->next;
+        }
+        temp->next = nouveau_billet;
+    }
+
+    printf("Billet ajouté avec succès par l'utilisateur %u au fil %s\n", user_id, num_fichier);
+}
+
 void *gerer_client(void *arg)
 {
     int client_sock = *(int *)arg;
@@ -59,29 +156,121 @@ void *gerer_client(void *arg)
         close(client_sock);
         return NULL;
     }
-
+    print_buffer(buffer, received);
     if (buffer[0] == CODEREQ)
     {
-        char pseudo[PSEUDO_LEN + 1];
-        memcpy(pseudo, &buffer[2], PSEUDO_LEN);
-        pseudo[PSEUDO_LEN] = '\0';
-        printf("Demande d'inscription avec le pseudo : %s\n", pseudo);
-
-        uint32_t user_id = inscrire_utilisateur(pseudo);
-        printf("Utilisateur inscrit avec l'ID : %u\n", user_id);
-
-        char response[9];
-        snprintf(response, sizeof(response), "ID%08u", user_id);
-
-        int sent = send(client_sock, response, sizeof(response), 0);
-        if (sent < 0)
+        if (buffer[1] == INSCRIPTION)
         {
-            perror("send");
+            char pseudo[PSEUDO_LEN + 1];
+            memcpy(pseudo, &buffer[2], PSEUDO_LEN);
+            pseudo[PSEUDO_LEN] = '\0';
+            int actual_pseudo_len = strnlen(pseudo, PSEUDO_LEN);
+            memset(pseudo + actual_pseudo_len, 0, PSEUDO_LEN - actual_pseudo_len); // Remplacez les caractères de remplissage par des zéros
+
+            printf("Demande d'inscription pour le pseudo: %s\n", pseudo);
+
+            uint32_t user_id = inscrire_utilisateur(pseudo);
+
+            uint32_t user_id_net = htonl(user_id);
+            int sent = send(client_sock, &user_id_net, sizeof(user_id_net), 0);
+            if (sent < 0)
+            {
+                perror("send");
+            }
+            else
+            {
+                printf("Utilisateur inscrit avec succès. Pseudo: %s, ID: %u\n", pseudo, user_id);
+            }
         }
-    }
-    else
-    {
-        printf("Requête non prise en charge\n");
+        else if (buffer[1] == POST_BILLET)
+        {
+            uint32_t user_id = ntohl(*((uint32_t *)&buffer[2]));
+            char num_fichier[PSEUDO_LEN + 1];
+            memcpy(num_fichier, &buffer[4], PSEUDO_LEN);
+            num_fichier[PSEUDO_LEN] = '\0';
+
+            printf("Demande d'ajout de billet par l'utilisateur ID: %hu pour le fil: %s\n", user_id, num_fichier);
+
+            ajouter_billet(user_id, num_fichier, "MESSAGE_BILLET");
+
+            char response[] = "Billet ajouté avec succès";
+            int sent = send(client_sock, response, sizeof(response), 0);
+            if (sent < 0)
+            {
+                perror("send");
+            }
+        }
+        else if (buffer[1] == LIST_BILLET)
+        {
+            uint32_t user_id = ntohl(*((uint32_t *)&buffer[2]));
+            printf("Demande de lister les billets par l'utilisateur ID: %hu\n", user_id);
+
+            // Recevoir le nombre de billets à afficher
+            uint8_t n;
+            int rcv = recv(client_sock, &n, sizeof(n), 0);
+            if (rcv < 0)
+            {
+                perror("recv");
+                exit(EXIT_FAILURE);
+            }
+
+            // Remplacez le code existant pour envoyer les n derniers billets par le nouveau code
+            Billet *current_billet = NULL;
+            Fil *current_fil = fils;
+
+            while (current_fil != NULL)
+            {
+                current_billet = current_fil->billet;
+                while (current_billet != NULL)
+                {
+                    char response[MESSAGE_LEN];
+                    snprintf(response, sizeof(response), "Billet de l'utilisateur %u : %s", current_billet->user_id, current_billet->message);
+                    int sent = send(client_sock, response, sizeof(response), 0);
+                    if (sent < 0)
+                    {
+                        perror("send");
+                    }
+                    current_billet = current_billet->next;
+                }
+                current_fil = current_fil->next;
+            }
+        }
+        else if (buffer[1] == USER_EXISTS)
+        {
+            uint32_t user_id = ntohl(*((uint32_t *)&buffer[2]));
+            char pseudo[PSEUDO_LEN + 1];
+            memcpy(pseudo, &buffer[4], PSEUDO_LEN);
+            pseudo[PSEUDO_LEN] = '\0';
+
+            printf("Vérification de l'existence de l'utilisateur ID: %hu, Pseudo: %s\n", user_id, pseudo);
+
+            if (utilisateur_existe(user_id, pseudo))
+            {
+                uint8_t response = 1; // Utilisez 1 pour indiquer que l'utilisateur existe
+                print_buffer((char *)&response, sizeof(response));
+                int sent = send(client_sock, &response, sizeof(response), 0);
+                if (sent < 0)
+                {
+                    perror("send");
+                }
+            }
+            else
+            {
+                uint8_t response = 0; // Utilisez 0 pour indiquer que l'utilisateur n'existe pas
+                print_buffer((char *)&response, sizeof(response));
+                int sent = send(client_sock, &response, sizeof(response), 0);
+
+                if (sent < 0)
+                {
+                    perror("send");
+                }
+            }
+        }
+
+        else
+        {
+            printf("Requête non prise en charge\n");
+        }
     }
 
     close(client_sock);
