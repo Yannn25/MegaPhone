@@ -188,7 +188,7 @@ uint16_t reception_inscription(int sock)
         perror("Erreur lors de la réception de la réponse du serveur");
         exit(EXIT_FAILURE);
     }
-    print_buffer((char *)response_header, sizeof(response_header)); // Ajoutez cette ligne
+    print_buffer((char *)response_header, sizeof(response_header));
     printf("Numéro de fil -> %u\nNB -> %u\n", num_fil, nb);
 
     return response_id;

@@ -61,12 +61,12 @@ Fil *fils = NULL;
 
 int utilisateur_existe(uint32_t id, const char *pseudo)
 {
-    int pseudo_len = strlen(pseudo); // Ajoutez cette ligne pour obtenir la longueur réelle du pseudo
+    int pseudo_len = strlen(pseudo);
     for (int i = 0; i < liste_utilisateurs.nombre; i++)
     {
         if (liste_utilisateurs.utilisateurs[i].id == id &&
-            strlen(liste_utilisateurs.utilisateurs[i].pseudo) == pseudo_len &&           // Ajoutez cette ligne pour vérifier si les longueurs des pseudos sont égales
-            strncmp(liste_utilisateurs.utilisateurs[i].pseudo, pseudo, pseudo_len) == 0) // Modifiez cette ligne pour comparer les pseudos avec la même longueur
+            strlen(liste_utilisateurs.utilisateurs[i].pseudo) == pseudo_len &&        
+            strncmp(liste_utilisateurs.utilisateurs[i].pseudo, pseudo, pseudo_len) == 0)
         {
             return 1;
         }
@@ -165,7 +165,7 @@ void *gerer_client(void *arg)
             memcpy(pseudo, &buffer[2], PSEUDO_LEN);
             pseudo[PSEUDO_LEN] = '\0';
             int actual_pseudo_len = strnlen(pseudo, PSEUDO_LEN);
-            memset(pseudo + actual_pseudo_len, 0, PSEUDO_LEN - actual_pseudo_len); // Remplacez les caractères de remplissage par des zéros
+            memset(pseudo + actual_pseudo_len, 0, PSEUDO_LEN - actual_pseudo_len);
 
             printf("Demande d'inscription pour le pseudo: %s\n", pseudo);
 
@@ -214,7 +214,6 @@ void *gerer_client(void *arg)
                 exit(EXIT_FAILURE);
             }
 
-            // Remplacez le code existant pour envoyer les n derniers billets par le nouveau code
             Billet *current_billet = NULL;
             Fil *current_fil = fils;
 
