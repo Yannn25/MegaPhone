@@ -8,6 +8,7 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include "include/global.h"
+#include "include/color.h"
 
 #include <ctype.h>
 
@@ -45,8 +46,81 @@ char *gestion_pseudo()
     {
         ret[i] = '#';
     }
+
     printf("val de pseudo : %s\n", ret);
-    return ret;
+
+    int snd = send(sock, &header, sizeof(header), 0);  // envoi de l'entête
+    if(snd < 0) {
+        perror("Erreur d'envoi ... \n");
+        exit(EXIT_FAILURE);
+    }
+    snd = send(sock, ret, PSEUDO_LEN, 0); //envoi du pseudo
+    if(snd < 0) {
+        perror("Erreur d'envoi ... \n");
+        exit(EXIT_FAILURE);
+    }
+}
+void post_bil(int sock, int client_id, int codereq) {
+    // Entête du message client
+    uint16_t header = htons(((u_int16_t)client_id << 5) | ((uint16_t)codereq & 0x1F));
+    printf("HEADER : %hu\n",header);
+    char ret[10 + 1]; // +1 pour le caractère de fin de chaîne
+    printf("Veuillez entrer un pseudo :\n");
+    scanf("%s", ret);
+}
+
+void reception_inscription(int sock) {
+    // Réception de la réponse du serveur
+    uint16_t response_header[2];
+    uint8_t code_req, num_fil;
+    uint16_t response_id, nb;
+
+    if (recv(sock, response_header, sizeof(response_header), 0) == -1) {
+        perror("Erreur lors de la réception de la réponse du serveur");
+        exit(EXIT_FAILURE);
+    }
+
+    code_req = ntohs(response_header[0] >> 5 & 0x1F);
+    response_id = ntohs(response_header[1] & 0x7FF); // Récupération des 11 bits de poids forts
+    printf("Received message :\nCode de requête -> %hu\nID client(garder l'id) -> %hu\n",code_req,response_id);
+    
+    if (recv(sock, &num_fil, sizeof(num_fil), 0) == -1) {
+        perror("Erreur lors de la réception de la réponse du serveur");
+        exit(EXIT_FAILURE);
+    }
+    if (recv(sock, &nb, sizeof(nb), 0) == -1) {
+        perror("Erreur lors de la réception de la réponse du serveur");
+        exit(EXIT_FAILURE);
+    }
+    printf("Numéro de fil -> %u\nNB -> %u\n", num_fil, nb);
+}
+
+
+void print_help() {
+    printf("Les requetes suivantes sont de la forme :\n1 - ...\n");
+}
+
+void gestion_req(int sock,int client_id,int codereq) {
+    switch (codereq) {
+        case 2:
+            post_bil(sock,client_id,codereq);
+            break;
+        case 3:
+            break;
+        case 4:
+            break;
+        case 5:
+            break;
+        case 6:
+            break;
+        default :
+            print_help();
+            break;
+    }
+
+}
+void reception_msg(int sock) {
+    printf("Non gérer...\n");
 }
 
 int creer_socket()
@@ -157,6 +231,7 @@ void poster_billet(int sock, uint16_t id, const char *num_fichier, const char *m
     bufrec[rec] = '\0';
     printf("Réponse serveur (ajout du billet): %s\n", bufrec);
 
+    
     close(sock);
 }
 
