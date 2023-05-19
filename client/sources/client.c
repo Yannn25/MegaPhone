@@ -107,37 +107,63 @@ int connection(client_t *client)
         return -1;
 }
 
+void menu(client_t *client)
+{
+    char choice[1024];
+    while (1)
+    {
+        printf("1. Poster un billet\n");
+        printf("2. demander la liste des billets\n");
+        printf("3. s'abonner à un fil\n");
+        printf("4. Quitter\n");
+        printf("Choisissez une option: ");
+        fgets(choice, 1024, stdin);
+        choice[strcspn(choice, "\n")] = 0;
+
+        if (strcmp(choice, "1") == 0)
+        {
+            printf("Ecrivez votre billet: ");
+            fgets(client->buffer, 1024, stdin);
+            client->buffer[strcspn(client->buffer, "\n")] = 0;
+            send_message(client->buffer, client->socket, client);
+        }
+        else if (strcmp(choice, "2") == 0)
+        {
+            printf("Demande de la liste des billets\n");
+        }
+        else if (strcmp(choice, "3") == 0)
+        {
+            printf("Demande d'abonnement à un fil\n");
+        }
+        else if (strcmp(choice, "4") == 0)
+        {
+            close(client->socket);
+            exit(0);
+        }
+        else
+        {
+            printf("Choix invalide. Essayez encore.\n");
+        }
+    }
+}
+
 int command_handler(client_t *client)
 {
-    int sock = 0;
-    struct sockaddr_in serv_addr;
-
-    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-        return -1;
-    serv_addr = (struct sockaddr_in){
-        .sin_family = AF_INET,
-        .sin_port = htons(client->port)};
-    if (inet_pton(AF_INET, client->ip, &serv_addr.sin_addr) <= 0)
-        return -1;
-    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
-        return -1;
-    send_message("connection", sock, client);
+    menu(client);
 }
 
 int connect_to_server(int port, char *ip)
 {
     int sock = 0;
     struct sockaddr_in serv_addr;
-
     if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
         return -1;
-    serv_addr = (struct sockaddr_in){
-        .sin_family = AF_INET,
-        .sin_port = htons(port)};
+    serv_addr = (struct sockaddr_in){.sin_family = AF_INET, .sin_port = htons(port)};
     if (inet_pton(AF_INET, ip, &serv_addr.sin_addr) <= 0)
         return -1;
     if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
         return -1;
+
     client_t client = {
         .socket = sock,
         .buffer = malloc(sizeof(char) * 1024),
@@ -152,10 +178,16 @@ int connect_to_server(int port, char *ip)
         .cmd_nb = 0,
         .ip = strdup(ip),
         .port = port};
+
     if (connection(&client) < 0)
+    {
+        close(client.socket);
         return -1;
+    }
+
+    command_handler(&client);
     printf("Connected to server\n");
-    close(client.socket);
+
     while (1)
     {
         client.buffer = memset(client.buffer, 0, 1024);
@@ -163,6 +195,9 @@ int connect_to_server(int port, char *ip)
         printf("%s", client.buffer);
         command_handler(&client);
     }
+
+    close(client.socket); // This should be placed here after the infinite loop.
+
     return 0;
 }
 

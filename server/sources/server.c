@@ -128,6 +128,20 @@ int check_connection(server_t *server, char *pseudo)
     return -1;
 }
 
+int check_pseudo_length(char *pseudo)
+{
+    int length = strlen(pseudo);
+    if (length <= 3)
+    {
+        return -1; // Pseudo trop court
+    }
+    if (length >= 10)
+    {
+        return 1; // Pseudo trop long
+    }
+    return 0; // Longueur de pseudo correcte
+}
+
 int connection(server_t *server, int i)
 {
     send_message("Etes vous inscrit ?(yes/no)\n", server->clients[i]);
@@ -160,16 +174,27 @@ int connection(server_t *server, int i)
         printf("%s\n", server->clients[i].buffer);
         buf = string_to_tab(server->clients[i].buffer, ':');
         char *msg = malloc(sizeof(char) * 1024);
+        int check_result = check_pseudo_length(buf[2]);
+        while (check_result != 0)
+        {
+            if (check_result == -1)
+            {
+                send_message("Pseudo trop court\n", server->clients[i]);
+            }
+            else if (check_result == 1)
+            {
+                send_message("Pseudo trop long\n", server->clients[i]);
+            }
+            read(server->clients[i].socket, server->clients[i].buffer, 1024);
+            buf = string_to_tab(server->clients[i].buffer, ':');
+            check_result = check_pseudo_length(buf[2]);
+        }
         if (inscription(server, buf[2]) == -1)
         {
             msg = strcat(msg, "Pseudo incorrect\n");
             send_message(msg, server->clients[i]);
             return -1;
         }
-        msg = strcat(msg, "Vous etes connecte:");
-        msg = strcat(msg, itoa(server->clients[i].id));
-        msg = strcat(msg, "\n");
-        send_message(msg, server->clients[i]);
     }
     else
     {
