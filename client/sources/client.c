@@ -23,6 +23,7 @@ char *itoa(int nb)
         str[k] ^= str[j];
         str[j] ^= str[k];
     }
+    free(str);
     return str;
 }
 
@@ -66,6 +67,7 @@ int send_message(char *message, int socket, client_t *client)
     if (write(socket, msg, strlen(msg)) < 0)
         return -1;
     return 0;
+    free(msg);
 }
 
 int connection(client_t *client)
@@ -105,6 +107,27 @@ int connection(client_t *client)
     }
     else
         return -1;
+    free(buff);
+}
+
+void post_message(client_t *client, int thread_num)
+{
+    char *message = malloc(sizeof(char) * 1024);
+
+    strcat(message, "1:");             // la commande pour poster un message
+    strcat(message, itoa(client->id)); // ajouter l'id du client
+    strcat(message, ":");
+    strcat(message, itoa(thread_num)); // ajouter le numéro du fil
+    strcat(message, ":");
+    strcat(message, client->buffer); // ajouter le message du client
+
+    // envoyer le message
+    if (send_message(message, client->socket, client) < 0)
+    {
+        printf("Erreur lors de l'envoi du message\n");
+    }
+
+    free(message);
 }
 
 void menu(client_t *client)
@@ -125,7 +148,15 @@ void menu(client_t *client)
             printf("Ecrivez votre billet: ");
             fgets(client->buffer, 1024, stdin);
             client->buffer[strcspn(client->buffer, "\n")] = 0;
-            send_message(client->buffer, client->socket, client);
+
+            // demande le numéro du fil
+            printf("Entrer le numéro du fil: ");
+            char thread_num_str[50];
+            fgets(thread_num_str, 50, stdin);
+            int thread_num = atoi(thread_num_str);
+
+            // appeler la fonction post_message()
+            post_message(client, thread_num);
         }
         else if (strcmp(choice, "2") == 0)
         {

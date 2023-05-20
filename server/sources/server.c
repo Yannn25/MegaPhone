@@ -53,6 +53,7 @@ int server_client_activity(server_t *server)
                 break;
             default:
                 printf("Received from %d: %s\n", client->socket, client->buffer);
+                free(client->buffer); // Libérer la mémoire allouée pour client->buffer
                 client->buffer = malloc(sizeof(char) * 1024);
                 break;
             }
@@ -107,7 +108,7 @@ int inscription(server_t *server, char *pseudo)
     tab[server->user_nb] = malloc(sizeof(char) * 1024);
     strcpy(tab[server->user_nb], pseudo);
     tab[server->user_nb + 1] = NULL;
-    server->usernames = malloc(sizeof(char *) * server->user_nb + 1);
+    server->usernames = malloc(sizeof(char *) * (server->user_nb + 1));
     for (int j = 0; j < server->user_nb + 1; ++j)
     {
         server->usernames[j] = malloc(sizeof(char) * 1024);
@@ -202,6 +203,63 @@ int connection(server_t *server, int i)
         return -1;
     }
     server->clients[i].buffer = malloc(sizeof(char) * 1024);
+}
+
+int post_message(char *message_content, int thread_id, client_t *client, server_t *server)
+{
+    // vérifier si l'utilisateur est inscrit
+    if (check_connection(server, client->name) == -1)
+    {
+        send_message("Vous n'êtes pas inscrit\n", *client);
+        return -1;
+    }
+
+    // trouver le fil
+    Thread *thread = NULL;
+    for (int i = 0; i < server->nb_threads; ++i)
+    {
+        if (server->threads[i].id == thread_id)
+        {
+            thread = &server->threads[i];
+            break;
+        }
+    }
+
+    // Si le fil n'existe pas, retourner une erreur
+    if (thread == NULL)
+    {
+        send_message("Ce fil n'existe pas\n", *client);
+        return -1;
+    }
+
+    // Créer un nouveau message
+    Message *new_message = malloc(sizeof(Message));
+    new_message->id = thread->id; // ou utiliser un autre moyen pour générer un identifiant unique pour le message
+    new_message->author_id = client->id;
+    new_message->content = strdup(message_content);
+    new_message->next = NULL;
+
+    // Ajouter le message à la fin de la liste de messages du fil
+    Message *last_message = thread->messages;
+    if (last_message == NULL)
+    {
+        thread->messages = new_message;
+    }
+    else
+    {
+        while (last_message->next != NULL)
+        {
+            last_message = last_message->next;
+        }
+        last_message->next = new_message;
+    }
+
+    // Ensuite, envoyer une confirmation au client
+    char *msg = malloc(sizeof(char) * 1024);
+    msg = strcat(msg, "Votre message a été ajouté\n");
+    send_message(msg, *client);
+
+    return 0;
 }
 
 int server_activity(server_t *server)

@@ -11,10 +11,27 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <errno.h>
+#include <pthread.h>
 
 #define MAX_CLIENT 30
+#define MAX_THREADS 100
 
-typedef struct client_s {
+typedef struct Message
+{
+    int id;
+    int author_id;
+    char *content;
+    struct Message *next;
+} Message;
+
+typedef struct Thread
+{
+    int id;
+    char *name;
+    Message *messages;
+} Thread;
+typedef struct client_s
+{
     int socket;
     int id;
     char *name;
@@ -24,7 +41,8 @@ typedef struct client_s {
     int actual_cmd;
 } client_t;
 
-typedef struct server_s {
+typedef struct server_s
+{
     int socket;
     int port;
     int addrlen;
@@ -35,6 +53,8 @@ typedef struct server_s {
     int nb_clients;
     char **usernames;
     int user_nb;
+    Thread threads[MAX_THREADS];
+    int nb_threads;
 } server_t;
 
 int server();

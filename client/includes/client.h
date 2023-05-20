@@ -12,10 +12,11 @@
 #include <sys/time.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <pthread.h>
 
 int client();
-
-typedef struct client_s {
+typedef struct client_s
+{
     int socket;
     char *name;
     char *buffer;
@@ -30,6 +31,4 @@ typedef struct client_s {
     char *ip;
     int port;
 } client_t;
-
 #endif
-
