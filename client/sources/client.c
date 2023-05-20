@@ -163,6 +163,30 @@ void menu(client_t *client) {
 
             case 2:
                 printf("Demande de la liste des billets\n");
+
+                // Request the list of last n tickets
+                int n;
+                int f;
+                printf("Entrez le nombre de billets à afficher: ");
+                scanf("%d", &n);
+                printf("Entrez le numéro du fil (0 for all threads): ");
+                scanf("%d", &f);
+
+                // Construct the request message
+                char message[BUF_LEN];
+                sprintf(message, "3:%d:%d:0:", client->id, f, n);
+
+                // Send the request message to the server
+                send_message(message, client->socket, client);
+
+                // Receive and print the response messages from the server
+                int num_messages;
+                read(client->socket, &num_messages, sizeof(int));
+                printf("Received %d messages:\n", num_messages);
+                for (int i = 0; i < num_messages; i++) {
+                    read(client->socket, client->buffer, BUF_LEN);
+                    printf("%s\n", client->buffer);
+                }
                 break;
             case 3:
                 printf("Demande d'abonnement à un fil\n");
