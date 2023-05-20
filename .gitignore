@@ -1,0 +1,9 @@
+# Ignorer les fichiers .o
+*.o
+
+#ignore le repertoire test
+test/
+
+# Ignorer les fichiers exécutables générés par la compilation
+*.exe
+*.out
