@@ -7,6 +7,7 @@
 #define CODEREQ '1' // code de requête
 #define ID '0'      // identifiant unique
 #define INSCRIPTION '1'
+#define ID_INSCRIPTION '0'
 #define MESSAGE_LEN 256
 #define POST_BILLET 0x03
 #define PSEUDO_LEN 10

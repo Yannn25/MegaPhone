@@ -14,6 +14,8 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 
+#define BUF_LEN 1024
+
 int client();
 typedef struct client_s
 {

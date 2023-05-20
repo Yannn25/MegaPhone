@@ -3,7 +3,7 @@
 
 char *itoa(int nb)
 {
-    char *str = malloc(sizeof(char) * 1024);
+    char *str = malloc(sizeof(char) * BUF_LEN);
     int i = 0;
     int j = 0;
     int k = 0;
@@ -29,12 +29,12 @@ char *itoa(int nb)
 
 char **string_to_tab(char *str, char sep)
 {
-    char **tab = malloc(sizeof(char *) * 1024);
+    char **tab = malloc(sizeof(char *) * BUF_LEN);
     int i = 0;
     int j = 0;
     int k = 0;
 
-    tab[i] = malloc(sizeof(char) * 1024);
+    tab[i] = malloc(sizeof(char) * BUF_LEN);
     while (str[j] != '\0')
     {
         if (str[j] == sep)
@@ -42,7 +42,7 @@ char **string_to_tab(char *str, char sep)
             tab[i][k] = '\0';
             i++;
             k = 0;
-            tab[i] = malloc(sizeof(char) * 1024);
+            tab[i] = malloc(sizeof(char) * BUF_LEN);
         }
         else
         {
@@ -58,7 +58,7 @@ char **string_to_tab(char *str, char sep)
 
 int send_message(char *message, int socket, client_t *client)
 {
-    char *msg = malloc(sizeof(char) * 1024);
+    char *msg = malloc(sizeof(char) * BUF_LEN);
     strcat(msg, itoa(client->cmd_nb));
     strcat(msg, ":");
     strcat(msg, itoa(client->id));
@@ -72,25 +72,25 @@ int send_message(char *message, int socket, client_t *client)
 
 int connection(client_t *client)
 {
-    char *buff = malloc(sizeof(char) * 1024);
+    char *buff = malloc(sizeof(char) * BUF_LEN);
     int valread = 0;
-    valread = read(client->socket, buff, 1024);
+    valread = read(client->socket, buff, BUF_LEN);
     if (strcmp(buff, "Etes vous inscrit ?(yes/no)\n") == 0)
     {
         printf("%s", buff);
-        buff = memset(buff, 0, 1024);
-        valread = read(0, buff, 1024);
+        buff = memset(buff, 0, BUF_LEN);
+        valread = read(0, buff, BUF_LEN);
         send_message(buff, client->socket, client);
-        buff = memset(buff, 0, 1024);
-        valread = read(client->socket, buff, 1024);
-        if (strcmp(buff, "Entrez votre username\n") == 0)
+        buff = memset(buff, 0, BUF_LEN);
+        valread = read(client->socket, buff, BUF_LEN);
+        if (strcmp(buff, "Entrez votre username\n") == 0 || strcmp(buff, "Choissisez  un pseudo\n") == 0)
         {
             printf("%s", buff);
-            buff = memset(buff, 0, 1024);
-            valread = read(0, buff, 1024);
+            buff = memset(buff, 0, BUF_LEN);
+            valread = read(0, buff, BUF_LEN);
             send_message(buff, client->socket, client);
-            buff = memset(buff, 0, 1024);
-            valread = read(client->socket, buff, 1024);
+            buff = memset(buff, 0, BUF_LEN);
+            valread = read(client->socket, buff, BUF_LEN);
             printf("%s", buff);
             if (strncmp(buff, "Vous etes connecte", 18) == 0)
             {
@@ -112,7 +112,7 @@ int connection(client_t *client)
 
 void post_message(client_t *client, int thread_num)
 {
-    char *message = malloc(sizeof(char) * 1024);
+    char *message = malloc(sizeof(char) * BUF_LEN);
 
     strcat(message, "1:");             // la commande pour poster un message
     strcat(message, itoa(client->id)); // ajouter l'id du client
@@ -130,52 +130,62 @@ void post_message(client_t *client, int thread_num)
     free(message);
 }
 
-void menu(client_t *client)
-{
-    char choice[1024];
-    while (1)
-    {
+void menu(client_t *client) {
+    char choice[BUF_LEN];
+    while (1) {
         printf("1. Poster un billet\n");
         printf("2. demander la liste des billets\n");
         printf("3. s'abonner à un fil\n");
-        printf("4. Quitter\n");
+        printf("4. Ajouter un fichier\n");
+        printf("5. Télécharger un fichier\n");
+        printf("6. Quitter\n");
         printf("Choisissez une option: ");
-        fgets(choice, 1024, stdin);
+        fgets(choice, BUF_LEN, stdin);
         choice[strcspn(choice, "\n")] = 0;
 
-        if (strcmp(choice, "1") == 0)
-        {
-            printf("Ecrivez votre billet: ");
-            fgets(client->buffer, 1024, stdin);
-            client->buffer[strcspn(client->buffer, "\n")] = 0;
+        switch (atoi(choice)) {
+            case 1:
+                printf("Poster un billet\nEcrivez votre billet: ");
+                fgets(client->buffer, BUF_LEN, stdin);
+                client->buffer[strcspn(client->buffer, "\n")] = 0;
 
-            // demande le numéro du fil
-            printf("Entrer le numéro du fil: ");
-            char thread_num_str[50];
-            fgets(thread_num_str, 50, stdin);
-            int thread_num = atoi(thread_num_str);
+                // demande le numéro du fil
+                printf("Entrer le numéro du fil: ");
+                char thread_num_str[50];
+                fgets(thread_num_str, 50, stdin);
+                int thread_num = atoi(thread_num_str);
 
-            // appeler la fonction post_message()
-            post_message(client, thread_num);
+                // appeler la fonction post_message()
+                post_message(client, thread_num);
+                //reception du message
+                read(client->socket, client->buffer, BUF_LEN);
+                break;
+
+            case 2:
+                printf("Demande de la liste des billets\n");
+                break;
+            case 3:
+                printf("Demande d'abonnement à un fil\n");
+                break;
+
+            case 4:
+                printf("Ajouter un fichier\n");
+                break;
+
+            case 5:
+                printf("Télécharger un fichier\n");
+                break;
+
+            case 6:
+                close(client->socket);
+                exit(0);
+                break;
+
+            default:
+                printf("Choix invalide. Essayez encore.\n");
+                break;
+            }
         }
-        else if (strcmp(choice, "2") == 0)
-        {
-            printf("Demande de la liste des billets\n");
-        }
-        else if (strcmp(choice, "3") == 0)
-        {
-            printf("Demande d'abonnement à un fil\n");
-        }
-        else if (strcmp(choice, "4") == 0)
-        {
-            close(client->socket);
-            exit(0);
-        }
-        else
-        {
-            printf("Choix invalide. Essayez encore.\n");
-        }
-    }
 }
 
 int command_handler(client_t *client)
@@ -197,11 +207,11 @@ int connect_to_server(int port, char *ip)
 
     client_t client = {
         .socket = sock,
-        .buffer = malloc(sizeof(char) * 1024),
+        .buffer = malloc(sizeof(char) * BUF_LEN),
         .valread = 0,
-        .serv_buffer = malloc(sizeof(char) * 1024),
+        .serv_buffer = malloc(sizeof(char) * BUF_LEN),
         .serv_valread = 0,
-        .name = malloc(sizeof(char) * 1024),
+        .name = malloc(sizeof(char) * BUF_LEN),
         .address = serv_addr,
         .addrlen = sizeof(serv_addr),
         .readfds = (fd_set){0},
@@ -221,8 +231,8 @@ int connect_to_server(int port, char *ip)
 
     while (1)
     {
-        client.buffer = memset(client.buffer, 0, 1024);
-        client.valread = read(0, client.buffer, 1024);
+        client.buffer = memset(client.buffer, 0, BUF_LEN);
+        client.valread = read(0, client.buffer, BUF_LEN);
         printf("%s", client.buffer);
         command_handler(&client);
     }
@@ -234,6 +244,6 @@ int connect_to_server(int port, char *ip)
 
 int client()
 {
-    connect_to_server(7777, "127.0.0.1");
+    connect_to_server(9493, "127.0.0.1");
     return 0;
 }

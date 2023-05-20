@@ -47,7 +47,7 @@ typedef struct server_s
     int port;
     int addrlen;
     fd_set readfds;
-    struct sockaddr_in address;
+    struct sockaddr_in6 address;
     client_t *clients;
     int talk_sock;
     int nb_clients;
