@@ -158,6 +158,10 @@ void get_last_n_messages(int n, int thread_id, client_t *client)
         printf("Failed to send request to server\n");
         return;
     }
+    {
+        printf("Failed to send request to server\n");
+        return;
+    }
 
     // Réception de la réponse du serveur
     int num_messages = 0;

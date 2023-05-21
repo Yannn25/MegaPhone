@@ -331,7 +331,9 @@ int server_activity(server_t *server)
     {
         if ((new_socket = accept(server->socket, (struct sockaddr *)&server->address, (socklen_t *)&server->addrlen)) < 0)
             return -1;
-        printf("New connection, socket fd is %d, ip is : %s, port : %d\n", new_socket, inet_ntoa(server->address.sin_addr), ntohs(server->address.sin_port));
+        char ip_address[INET6_ADDRSTRLEN];
+inet_ntop(AF_INET6, &(server->address.sin6_addr), ip_address, INET6_ADDRSTRLEN);
+printf("New connection, socket fd is %d, ip is : %s, port : %d\n", new_socket, ip_address, ntohs(server->address.sin6_port));
         for (int i = 0; i < MAX_CLIENT; i++)
         {
             if (server->clients[i].socket == -1)
@@ -426,15 +428,20 @@ server_t create_server(int port)
     server.usernames = malloc(sizeof(char *) * 1);
     server.usernames[0] = "NULL";
     server.user_nb = 0;
-    if ((server.socket = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-    {
-        free(server.usernames);
+    if ((server.socket = socket(AF_INET6, SOCK_STREAM, 0)) < 0)
         exit(84);
-    }
-    server.address = (struct sockaddr_in){
-        .sin_family = AF_INET,
-        .sin_addr.s_addr = INADDR_ANY,
-        .sin_port = htons(port)};
+    int no = 0;
+    int r = setsockopt(server.socket, IPPROTO_IPV6, IPV6_V6ONLY, &no, sizeof(no));
+    if(r < 0)
+        fprintf(stderr, "échec de setsockopt() : (%d)\n", errno);
+    int yes = 1;
+    r = setsockopt(server.socket, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+    if(r < 0)
+        fprintf(stderr, "échec de setsockopt() : (%d)\n", errno);   
+    server.address = (struct sockaddr_in6){
+        .sin6_family = AF_INET6,
+        .sin6_addr.s6_addr = INADDR_ANY,
+        .sin6_port = htons(port)};
     server.addrlen = sizeof(server.address);
     if (bind(server.socket, (struct sockaddr *)&server.address, server.addrlen) < 0)
     {
@@ -452,6 +459,7 @@ server_t create_server(int port)
     server.nb_clients = 0;
     return server;
 }
+
 
 int server()
 {
