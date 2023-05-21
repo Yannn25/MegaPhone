@@ -262,6 +262,44 @@ int post_message(char *message_content, int thread_id, client_t *client, server_
     return 0;
 }
 
+void prepare_subscribe_message(subscribe_message_t *message, int clientID, int numfil, int port, const char *multicastAddr) {
+    message->CODEREQ = htonl(4);
+    message->ID = htonl(clientID);
+    message->NUMFIL = htonl(numfil);
+    message->NB = htonl(port);
+    message->LENDATA = 0; // Remplir avec la longueur réelle des données si nécessaire
+    message->DATA = strdup(multicastAddr); // Dupliquer l'adresse de multidiffusion pour la transmission
+}
+
+int send_subscribe_message(int socket, subscribe_message_t *message) {
+    int result = 0;
+    result += send(socket, &(message->CODEREQ), sizeof(int), 0);
+    result += send(socket, &(message->ID), sizeof(int), 0);
+    result += send(socket, &(message->NUMFIL), sizeof(int), 0);
+    result += send(socket, &(message->NB), sizeof(int), 0);
+    result += send(socket, &(message->LENDATA), sizeof(int), 0);
+    result += send(socket, message->DATA, message->LENDATA, 0);
+    return result;
+}
+
+void subscribe_request(client_t client) {
+    //reception des
+
+    // Exemple de génération d'une adresse de multidiffusion
+    const char *multicastAddr = "FF12::1:2";
+
+    subscribe_message_t message;
+    prepare_subscribe_message(&message, clientID, numfil, 1234, multicastAddr);
+
+    if (send_subscribe_message(clientSocket, &message) == -1) {
+        perror("Erreur lors de l'envoi du message d'abonnement");
+        // Gérer l'erreur et terminer la connexion si nécessaire
+    }
+
+    // Libérer les ressources si nécessaire
+    free(message.DATA);
+}
+
 int server_activity(server_t *server)
 {
     int activity = 0;
@@ -273,7 +311,7 @@ int server_activity(server_t *server)
             return -1;
         char ip_address[INET6_ADDRSTRLEN];
         inet_ntop(AF_INET6, &(server->address.sin6_addr), ip_address, INET6_ADDRSTRLEN);
-        printf("New connection, socket fd is %d, IP is: %s, port: %d\n", new_socket, ip_address, ntohs(server->address.sin6_port));
+        printf("%sNew connection, socket fd is %d, IP is: %s, port: %d%s\n", CYAN,new_socket, ip_address, ntohs(server->address.sin6_port), RESET);
         for (int i = 0; i < MAX_CLIENT; i++)
         {
             if (server->clients[i].socket == -1)

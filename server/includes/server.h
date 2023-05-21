@@ -57,6 +57,15 @@ typedef struct server_s
     int nb_threads;
 } server_t;
 
+typedef struct format_message_s {
+    int CODEREQ;
+    int ID;
+    int NUMFIL;
+    int NB;
+    int LENDATA;
+    char *DATA;
+} format_message_t;
+
 int server();
 
 #endif /* !SERVER_H_ */
