@@ -1,5 +1,3 @@
-
-
 #ifndef CLIENT_H_
 #define CLIENT_H_
 
@@ -46,9 +44,9 @@ typedef struct subscribe_message_s {
     char *DATA;
 } subscribe_message_t;
 
-typedef struct {
-    int codereq;
-    int id_client;
-    // Autres champs de l'entête
-} entete;
+typedef struct entete {
+    uint16_t codereq;
+    uint16_t id;
+} entete_t;
+
 #endif

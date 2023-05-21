@@ -2,7 +2,6 @@
 #include "client.h"
 #include "color.h"
 
-
 char *itoa(int nb)
 {
     char *str = malloc(sizeof(char) * BUF_LEN);
@@ -25,7 +24,6 @@ char *itoa(int nb)
         str[k] ^= str[j];
         str[j] ^= str[k];
     }
-    free(str);
     return str;
 }
 
@@ -60,7 +58,8 @@ char **string_to_tab(char *str, char sep)
 
 int send_message(char *message, int socket, client_t *client)
 {
-    char *msg = malloc(sizeof(char) * 1024);
+
+    char *msg = malloc(sizeof(char) * BUF_LEN);
     printf("%d %d\n", client->cmd_nb, client->id);
     sprintf(msg, "%d:%d:%s", client->cmd_nb, client->id, message);
     if (write(socket, msg, strlen(msg)) < 0)
@@ -108,6 +107,7 @@ int connection(client_t *client)
     free(buff);
 }
 
+
 int connect_express(int port, char *ip, client_t *client)
 {
     int sock = 0;
@@ -122,10 +122,18 @@ int connect_express(int port, char *ip, client_t *client)
     client->socket = sock;
     return 0;
 }
+/*Formatage avant envoi id et codereq*/
+uint16_t formatage_entete_envoi(entete_t format) {
+    //Formattage coté client
+    format.id = format.id << 5;
+    uint16_t entete = format.codereq + format.id;
+    entete = htons(entete); // big endian
+    return entete;
+}
 
 void post_message(client_t *client, int thread_num)
 {
-    char *message = malloc(sizeof(char) * 1024);
+    char *message = malloc(sizeof(char) * BUF_LEN);
     client->cmd_nb = 1;
     strcat(message, itoa(thread_num));
     strcat(message, ":");
@@ -138,8 +146,8 @@ void post_message(client_t *client, int thread_num)
     {
         printf("Erreur lors de l'envoi du message\n");
     }
-    char *buff = malloc(sizeof(char) * 1024);
-    read(client->socket, buff, 1024);
+    char *buff = malloc(sizeof(char) * BUF_LEN);
+    read(client->socket, buff, BUF_LEN);
     printf("%s\n", buff);
 }
 
@@ -338,7 +346,7 @@ void menu(client_t *client) {
 
                 // Construct the request message
                 char message[BUF_LEN];
-                sprintf(message, "3:%d:%d:0:", client->id, f, n);
+                sprintf(message, "3:%d:%d:0:%d", client->id, f, n);
 
                 // Send the request message to the server
                 send_message(message, client->socket, client);
@@ -398,7 +406,6 @@ int connect_to_server(int port, char *ip)
         return -1;
     if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
         return -1;
-
     client_t client = {
         .socket = sock,
         .buffer = malloc(sizeof(char) * BUF_LEN),
@@ -412,35 +419,27 @@ int connect_to_server(int port, char *ip)
         .id = 0,
         .cmd_nb = 0,
         .ip = strdup(ip),
-        .port = port,
-        .multi_ip = "",
-        .multi_port = 00
-        };
+        .port = port};
 
+    send_message("Connection", client.socket, &client);
     if (connection(&client) < 0)
     {
         close(client.socket);
         return -1;
     }
-
-    command_handler(&client);
     printf("Connected to server\n");
+    close(client.socket); // This should be placed here after the infinite loop.
 
     while (1)
     {
-        client.buffer = memset(client.buffer, 0, BUF_LEN);
-        client.valread = read(0, client.buffer, BUF_LEN);
-        printf("%s", client.buffer);
         command_handler(&client);
     }
-
-    close(client.socket); // This should be placed here after the infinite loop.
 
     return 0;
 }
 
 int client()
 {
-    connect_to_server(9493, "127.0.0.1");
+    connect_to_server(9494, "127.0.0.1");
     return 0;
 }
