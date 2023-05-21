@@ -12,6 +12,20 @@
 
 #include <ctype.h>
 
+typedef struct entete {
+    uint16_t codereq;
+    uint16_t id;
+} entete_t;
+
+/*Formatage avant envoi id et codereq*/
+uint16_t formatage_entete_envoi(entete_t format) {
+    //Formattage coté client
+    format.id = format.id << 5;
+    uint16_t entete = format.codereq + format.id;
+    entete = htons(entete); // big endian
+    return entete;
+}
+
 void print_buffer(const char *buffer, int size)
 {
     printf("Buffer content (size = %d):\n", size);
@@ -29,99 +43,53 @@ void print_buffer(const char *buffer, int size)
     printf("\n");
 }
 
-char *gestion_pseudo()
-{
+char *gestion_pseudo() {
     printf("Veuillez entrer un pseudo :\n");
-    char *ret = malloc(PSEUDO_LEN);
-    while (1)
-    {
-        // memset(ret, 0, PSEUDO_LEN);
+    char *ret = malloc(PSEUDO_LEN + 1);
+    while (1) {
+        memset(ret, 0, PSEUDO_LEN + 1);
         scanf("%s", ret);
-        if (strlen(ret) < 10 && strcmp(ret, "") != 0)
+        if (strlen(ret) < 10 && strcmp(ret,"") != 0)
             break;
         else
             printf("Le pseudo choisi est trop long recommencez :\n");
     }
-    for (int i = strlen(ret); i < PSEUDO_LEN; i++)
-    {
+    for (int i = strlen(ret); i < PSEUDO_LEN; i++) {
         ret[i] = '#';
     }
-
+    ret[PSEUDO_LEN] = '\0'; // Ajout de la terminaison de chaîne
     printf("val de pseudo : %s\n", ret);
-
-    int snd = send(sock, &header, sizeof(header), 0);  // envoi de l'entête
-    if(snd < 0) {
-        perror("Erreur d'envoi ... \n");
-        exit(EXIT_FAILURE);
-    }
-    snd = send(sock, ret, PSEUDO_LEN, 0); //envoi du pseudo
-    if(snd < 0) {
-        perror("Erreur d'envoi ... \n");
-        exit(EXIT_FAILURE);
-    }
-}
-void post_bil(int sock, int client_id, int codereq) {
-    // Entête du message client
-    uint16_t header = htons(((u_int16_t)client_id << 5) | ((uint16_t)codereq & 0x1F));
-    printf("HEADER : %hu\n",header);
-    char ret[10 + 1]; // +1 pour le caractère de fin de chaîne
-    printf("Veuillez entrer un pseudo :\n");
-    scanf("%s", ret);
+    return ret;
 }
 
-void reception_inscription(int sock) {
-    // Réception de la réponse du serveur
-    uint16_t response_header[2];
-    uint8_t code_req, num_fil;
-    uint16_t response_id, nb;
 
-    if (recv(sock, response_header, sizeof(response_header), 0) == -1) {
-        perror("Erreur lors de la réception de la réponse du serveur");
-        exit(EXIT_FAILURE);
-    }
+// void reception_inscription(int sock) {
+//     // Réception de la réponse du serveur
+//     uint16_t response_header[2];
+//     uint8_t code_req, num_fil;
+//     uint16_t response_id, nb;
 
-    code_req = ntohs(response_header[0] >> 5 & 0x1F);
-    response_id = ntohs(response_header[1] & 0x7FF); // Récupération des 11 bits de poids forts
-    printf("Received message :\nCode de requête -> %hu\nID client(garder l'id) -> %hu\n",code_req,response_id);
+//     if (recv(sock, response_header, sizeof(response_header), 0) == -1) {
+//         perror("Erreur lors de la réception de la réponse du serveur");
+//         exit(EXIT_FAILURE);
+//     }
+
+//     code_req = ntohs(response_header[0] >> 5 & 0x1F);
+//     response_id = ntohs(response_header[1] & 0x7FF); // Récupération des 11 bits de poids forts
+//     printf("Received message :\nCode de requête -> %hu\nID client(garder l'id) -> %hu\n",code_req,response_id);
     
-    if (recv(sock, &num_fil, sizeof(num_fil), 0) == -1) {
-        perror("Erreur lors de la réception de la réponse du serveur");
-        exit(EXIT_FAILURE);
-    }
-    if (recv(sock, &nb, sizeof(nb), 0) == -1) {
-        perror("Erreur lors de la réception de la réponse du serveur");
-        exit(EXIT_FAILURE);
-    }
-    printf("Numéro de fil -> %u\nNB -> %u\n", num_fil, nb);
-}
+//     if (recv(sock, &num_fil, sizeof(num_fil), 0) == -1) {
+//         perror("Erreur lors de la réception de la réponse du serveur");
+//         exit(EXIT_FAILURE);
+//     }
+//     if (recv(sock, &nb, sizeof(nb), 0) == -1) {
+//         perror("Erreur lors de la réception de la réponse du serveur");
+//         exit(EXIT_FAILURE);
+//     }
+//     printf("Numéro de fil -> %u\nNB -> %u\n", num_fil, nb);
+// }
 
 
-void print_help() {
-    printf("Les requetes suivantes sont de la forme :\n1 - ...\n");
-}
-
-void gestion_req(int sock,int client_id,int codereq) {
-    switch (codereq) {
-        case 2:
-            post_bil(sock,client_id,codereq);
-            break;
-        case 3:
-            break;
-        case 4:
-            break;
-        case 5:
-            break;
-        case 6:
-            break;
-        default :
-            print_help();
-            break;
-    }
-
-}
-void reception_msg(int sock) {
-    printf("Non gérer...\n");
-}
 
 int creer_socket()
 {
@@ -132,6 +100,11 @@ int creer_socket()
         exit(EXIT_FAILURE);
     }
     return sock;
+}
+
+int udp_socket() {
+    int sock = socket(PF_INET6, SOCK_STREAM, 0);
+
 }
 
 int utilisateur_existe(int socket, uint16_t id_client, const char *pseudo)
@@ -185,23 +158,36 @@ void se_connecter_au_serveur(int sock)
     printf("Connected to server\nVeuillez envoyez votre requete :\n");
 }
 
-void inscrire_utilisateur(int sock)
-{
-    char *pseudo = gestion_pseudo();
+void construire_entete(uint16_t *entete, uint8_t code_req, uint16_t id_utilisateur) {
+    // Code de la requête sur les 5 bits de poids faibles
+    entete[0] = htons((code_req & 0x1F) << 11);
+    // Identifiant de l'utilisateur sur les 11 bits suivants
+    entete[0] |= htons(id_utilisateur & 0x7FF);
+}
 
+
+void inscrire_utilisateur(int sock) {
+    char *pseudo = gestion_pseudo();
     // le client se connecte au serveur et envoie une demande d’inscription en donnant le pseudo de l’utilisateur.
-    char bufenv[2 + PSEUDO_LEN];
-    bufenv[0] = CODEREQ;
-    bufenv[1] = INSCRIPTION;
-    memcpy(&bufenv[2], pseudo, PSEUDO_LEN);
-    print_buffer(bufenv, sizeof(bufenv));
-    int env = send(sock, bufenv, sizeof(bufenv), 0);
-    if (env < 0)
-    {
-        perror("Erreur d'envoi...\n");
+    uint16_t *entete = malloc(sizeof(uint16_t));
+    construire_entete(entete,(uint8_t)INSCRIPTION, (uint16_t)ID_INSCRIPTION);
+    char buffer_entete[sizeof(*entete)];
+    memcpy(buffer_entete, entete, sizeof(*entete));
+    printf("HEADER : %02x %02x\n", buffer_entete[0], buffer_entete[1]);
+    //printf("HEADER : %s\n",buffer_entete);
+    //print_buffer(bufenv, sizeof(bufenv));
+    int snd = send(sock, buffer_entete, sizeof(buffer_entete), 0);
+    if (snd < 0) {
+        perror("Erreur d'envoi entete inscription...\n");
+        exit(EXIT_FAILURE);
+    }
+    snd = send(sock, pseudo, PSEUDO_LEN + 1, 0); //envoi du pseudo
+    if(snd < 0) {
+        perror("Erreur d'envoi pseudo... \n");
         exit(EXIT_FAILURE);
     }
     free(pseudo);
+    free(entete);
 }
 
 void poster_billet(int sock, uint16_t id, const char *num_fichier, const char *message_billet)
@@ -248,8 +234,8 @@ uint16_t reception_inscription(int sock)
         exit(EXIT_FAILURE);
     }
 
-    code_req = ntohs(response_header[0] >> 5 & 0x1F);
-    response_id = ntohs(response_header[1]);
+    code_req = ntohs(response_header[0] >> 5);
+    response_id = ntohs(response_header[1] << 11);
     printf("Received message :\nCode de requête -> %hu\nID client(garder l'id) -> %hu\n", code_req, response_id);
 
     if (recv(sock, &num_fil, sizeof(num_fil), 0) == -1)
@@ -314,14 +300,14 @@ void menu(int sock, uint16_t id_client)
 
     while (1)
     {
-        printf("\nMenu:\n1. Poster un billet (p)\n2. Lister les n derniers billets (l)\n3. Abonnement à un fil (s)\n4. Quitter (q)\n");
+        printf("\nMenu:\n1. Poster un billet (p)\n2. Lister les n derniers billets (l)\n3. Abonnement à un fil (s)\n4. Ajouter un fichier (f)\n5. Télécharger un fichier (t)\n6. Quitter (q)\n");
         printf("Entrez votre choix: ");
         scanf(" %c", &choix);
 
         switch (choix)
         {
         case 'p':
-        {
+            {
             printf("Entrez le numéro du fichier: ");
             scanf("%s", num_fichier);
             printf("Entrez le message du billet: ");
@@ -331,9 +317,8 @@ void menu(int sock, uint16_t id_client)
             int sock_poster = creer_socket();
             se_connecter_au_serveur(sock_poster);
             poster_billet(sock_poster, id_client, num_fichier, message_billet);
-        }
-
-        break;
+            }
+            break;
 
         case 'l':
             // Lister les n derniers billets
@@ -351,7 +336,10 @@ void menu(int sock, uint16_t id_client)
         case 's':
             // Implémenter la fonction pour s'abonner à un fil
             break;
-
+        case 'f':
+            break;
+        case 't':
+            break;    
         case 'q':
             printf("Au revoir!\n");
             exit(0);

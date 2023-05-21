@@ -15,6 +15,8 @@
 
 #define MAX_CLIENT 30
 #define MAX_THREADS 100
+#define BUF_LEN 1024
+#define DEFAULT_MULTI_PORT 7000
 
 typedef struct Message
 {
