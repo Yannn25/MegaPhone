@@ -15,8 +15,6 @@
 
 #define MAX_CLIENT 30
 #define MAX_THREADS 100
-#define BUF_LEN 1024
-#define DEFAULT_MULTI_PORT 7000
 
 typedef struct Message
 {
@@ -32,6 +30,7 @@ typedef struct Thread
     char *name;
     Message *messages;
 } Thread;
+
 typedef struct client_s
 {
     int socket;
@@ -49,7 +48,7 @@ typedef struct server_s
     int port;
     int addrlen;
     fd_set readfds;
-    struct sockaddr_in6 address;
+    struct sockaddr_in address;
     client_t *clients;
     int talk_sock;
     int nb_clients;
@@ -58,15 +57,6 @@ typedef struct server_s
     Thread threads[MAX_THREADS];
     int nb_threads;
 } server_t;
-
-typedef struct format_message_s {
-    int CODEREQ;
-    int ID;
-    int NUMFIL;
-    int NB;
-    int LENDATA;
-    char *DATA;
-} format_message_t;
 
 int server();
 

@@ -1,9 +1,9 @@
 #include <stdio.h>
 #include "server.h"
-
+#include "color.h"
 char *itoa(int nb)
 {
-    char *str = malloc(sizeof(char) * BUF_LEN);
+    char *str = malloc(sizeof(char) * 1024);
     int i = 0;
     int j = 0;
     int k = 0;
@@ -26,14 +26,50 @@ char *itoa(int nb)
     return str;
 }
 
+int send_message(char *msg, client_t client)
+{
+    if (write(client.socket, msg, strlen(msg)) < 0)
+        return -1;
+    return 0;
+}
+
+int server_client_activity(server_t *server)
+{
+    client_t *client = NULL;
+
+    for (int i = 0; i < server->nb_clients; i++)
+    {
+        client = &server->clients[i];
+        if (FD_ISSET(client->socket, &server->readfds))
+        {
+            client->valread = read(client->socket, client->buffer, 1024);
+            switch (client->valread)
+            {
+            case -1:
+                return -1;
+            case 0:
+                close(client->socket);
+                client->socket = -1;
+                break;
+            default:
+                printf("Received from %d: %s\n", client->socket, client->buffer);
+                free(client->buffer); // Libérer la mémoire allouée pour client->buffer
+                client->buffer = malloc(sizeof(char) * 1024);
+                break;
+            }
+        }
+    }
+    return 0;
+}
+
 char **string_to_tab(char *str, char sep)
 {
-    char **tab = malloc(sizeof(char *) * BUF_LEN);
+    char **tab = malloc(sizeof(char *) * 1024);
     int i = 0;
     int j = 0;
     int k = 0;
 
-    tab[i] = malloc(sizeof(char) * BUF_LEN);
+    tab[i] = malloc(sizeof(char) * 1024);
     while (str[j] != '\0')
     {
         if (str[j] == sep)
@@ -41,7 +77,7 @@ char **string_to_tab(char *str, char sep)
             tab[i][k] = '\0';
             i++;
             k = 0;
-            tab[i] = malloc(sizeof(char) * BUF_LEN);
+            tab[i] = malloc(sizeof(char) * 1024);
         }
         else
         {
@@ -66,16 +102,16 @@ int inscription(server_t *server, char *pseudo)
     char **tab = malloc(sizeof(char *) * server->user_nb + 1);
     for (int j = 0; j < server->user_nb; ++j)
     {
-        tab[j] = malloc(sizeof(char) * BUF_LEN);
+        tab[j] = malloc(sizeof(char) * 1024);
         tab[j] = server->usernames[j];
     }
-    tab[server->user_nb] = malloc(sizeof(char) * BUF_LEN);
+    tab[server->user_nb] = malloc(sizeof(char) * 1024);
     strcpy(tab[server->user_nb], pseudo);
     tab[server->user_nb + 1] = NULL;
     server->usernames = malloc(sizeof(char *) * (server->user_nb + 1));
     for (int j = 0; j < server->user_nb + 1; ++j)
     {
-        server->usernames[j] = malloc(sizeof(char) * BUF_LEN);
+        server->usernames[j] = malloc(sizeof(char) * 1024);
         server->usernames[j] = tab[j];
     }
     server->usernames[server->user_nb + 1] = NULL;
@@ -110,17 +146,17 @@ int check_pseudo_length(char *pseudo)
 int connection(server_t *server, int i)
 {
     send_message("Etes vous inscrit ?(yes/no)\n", server->clients[i]);
-    read(server->clients[i].socket, server->clients[i].buffer, BUF_LEN);
+    read(server->clients[i].socket, server->clients[i].buffer, 1024);
     printf("%s\n", server->clients[i].buffer);
     char **buf = string_to_tab(server->clients[i].buffer, ':');
     printf("%s - %s - %s\n", buf[0], buf[1], buf[2]);
     if (strncmp(buf[2], "yes", 3) == 0)
     {
         send_message("Entrez votre username\n", server->clients[i]);
-        read(server->clients[i].socket, server->clients[i].buffer, BUF_LEN);
+        read(server->clients[i].socket, server->clients[i].buffer, 1024);
         printf("%s\n", server->clients[i].buffer);
         buf = string_to_tab(server->clients[i].buffer, ':');
-        char *msg = malloc(sizeof(char) * BUF_LEN);
+        char *msg = malloc(sizeof(char) * 1024);
         if (check_connection(server, buf[2]) == -1)
         {
             msg = strcat(msg, "Vous n'etes pas inscrit\n");
@@ -128,17 +164,19 @@ int connection(server_t *server, int i)
             return -1;
         }
         msg = strcat(msg, "Vous etes connecte:");
-        msg = strcat(msg, itoa(server->clients[i].id));
+        for (int j = 0; j < server->user_nb; ++j)
+            if (strcmp(server->usernames[j], buf[2]) == 0)
+                msg = strcat(msg, itoa(j + 1));
         msg = strcat(msg, "\n");
         send_message(msg, server->clients[i]);
     }
     else if (strncmp(buf[2], "no", 2) == 0)
     {
-        send_message("Choissisez  un pseudo\n", server->clients[i]);
-        read(server->clients[i].socket, server->clients[i].buffer, BUF_LEN);
+        send_message("Entrez votre username\n", server->clients[i]);
+        read(server->clients[i].socket, server->clients[i].buffer, 1024);
         printf("%s\n", server->clients[i].buffer);
         buf = string_to_tab(server->clients[i].buffer, ':');
-        char *msg = malloc(sizeof(char) * BUF_LEN);
+        char *msg = malloc(sizeof(char) * 1024);
         int check_result = check_pseudo_length(buf[2]);
         while (check_result != 0)
         {
@@ -150,31 +188,41 @@ int connection(server_t *server, int i)
             {
                 send_message("Pseudo trop long\n", server->clients[i]);
             }
-            read(server->clients[i].socket, server->clients[i].buffer, BUF_LEN);
+            read(server->clients[i].socket, server->clients[i].buffer, 1024);
             buf = string_to_tab(server->clients[i].buffer, ':');
             check_result = check_pseudo_length(buf[2]);
         }
+        printf("Taille du pseudo correcte\n");
         if (inscription(server, buf[2]) == -1)
         {
+            printf("Pseudo incorrect\n");
             msg = strcat(msg, "Pseudo incorrect\n");
             send_message(msg, server->clients[i]);
             return -1;
         }
+        printf("Pseudo correct\n");
+        msg = strcat(msg, "Vous etes connecte:");
+        for (int j = 0; j < server->user_nb; ++j)
+            if (strcmp(server->usernames[j], buf[2]) == 0)
+                msg = strcat(msg, itoa(j + 1));
+        msg = strcat(msg, "\n");
+        send_message(msg, server->clients[i]);
     }
     else
     {
         send_message("Error\n", server->clients[i]);
         return -1;
     }
-    server->clients[i].buffer = malloc(sizeof(char) * BUF_LEN);
+    server->clients[i].buffer = malloc(sizeof(char) * 1024);
 }
 
-int post_message(char *message_content, int thread_id, client_t *client, server_t *server)
+int post_message(char *message_content, int thread_id, int id, server_t *server, client_t *client)
 {
+    printf("%d - %d - %d\n", id, thread_id, server->nb_threads);
     // vérifier si l'utilisateur est inscrit
-    if (check_connection(server, client->name) == -1)
+    if (id <= 0)
     {
-        send_message("Vous n'êtes pas inscrit\n", *client);
+        send_message("Vous n'etes pas inscrit\n", *client);
         return -1;
     }
 
@@ -189,11 +237,23 @@ int post_message(char *message_content, int thread_id, client_t *client, server_
         }
     }
 
-    // Si le fil n'existe pas, retourner une erreur
     if (thread == NULL)
     {
-        send_message("Ce fil n'existe pas\n", *client);
-        return -1;
+        // Vérifier que vous n'avez pas atteint le nombre maximum de fils
+        if (server->nb_threads >= MAX_THREADS)
+        {
+            send_message("Nombre maximal de fils atteint. Impossible de créer un nouveau fil.\n", *client);
+            return -1;
+        }
+
+        // Créer un nouveau fil
+        thread = &server->threads[server->nb_threads];
+        thread->id = server->nb_threads;
+        thread->name = NULL; // ou donner un nom au fil, si vous le souhaitez
+        thread->messages = NULL;
+
+        // Mettre à jour le nombre de fils
+        server->nb_threads++;
     }
 
     // Créer un nouveau message
@@ -219,139 +279,53 @@ int post_message(char *message_content, int thread_id, client_t *client, server_
     }
 
     // Ensuite, envoyer une confirmation au client
-    char *msg = malloc(sizeof(char) * BUF_LEN);
+    char *msg = malloc(sizeof(char) * 1024);
     msg = strcat(msg, "Votre message a été ajouté\n");
     send_message(msg, *client);
 
     return 0;
 }
-int receive_format_message(int socket, format_message_t *message) {
-    int result = 0;
-    int temp;
 
-    // Réception des champs de l'entête
-    result += recv(socket, &temp, sizeof(int), 0);
-    message->CODEREQ = ntohl(temp);
-    result += recv(socket, &temp, sizeof(int), 0);
-    message->ID = ntohl(temp);
-    result += recv(socket, &temp, sizeof(int), 0);
-    message->NUMFIL = ntohl(temp);
-    result += recv(socket, &temp, sizeof(int), 0);
-    message->NB = ntohl(temp);
-    result += recv(socket, &temp, sizeof(int), 0);
-    message->LENDATA = ntohl(temp);
+/*Pour lister les billets mais à optimiser
 
-    // Allocation de mémoire pour les données
-    message->DATA = malloc(message->LENDATA);
-    if (message->DATA == NULL) {
-        perror("Erreur d'allocation de mémoire pour les données");
-        return -1;
-    }
-    result += recv(socket, message->DATA, message->LENDATA, 0);
-
-    if (result == -1) {
-        perror("Erreur lors de la réception du message");
-        free(message->DATA);
-        return -1;
-    }
-
-    return result;
-}
-
-
-void prepare_format_message(format_message_t *message, int clientID, int numfil, int port, const char *multicastAddr) {
-    message->CODEREQ = htons(4);
-    message->ID = htons(clientID);
-    message->NUMFIL = htons(numfil);
-    message->NB = htons(port);
-    message->LENDATA = 0; 
-    message->DATA = strdup(multicastAddr); // Dupliquer l'adresse de multidiffusion pour la transmission
-}
-
-int send_format_message(int socket, format_message_t *message) {
-    int result = 0;
-    result += send(socket, &(message->CODEREQ), sizeof(int), 0);
-    result += send(socket, &(message->ID), sizeof(int), 0);
-    result += send(socket, &(message->NUMFIL), sizeof(int), 0);
-    result += send(socket, &(message->NB), sizeof(int), 0);
-    //result += send(socket, &(message->LENDATA), sizeof(int), 0);
-    result += send(socket, message->DATA, message->LENDATA, 0);
-    return result;
-}
-
-void send_error_message(int socket) {
-    format_message_t error_message;
-    error_message.CODEREQ = 31;
-    error_message.ID = 0;
-    error_message.NUMFIL = 0;
-    error_message.NB = 0;
-    error_message.LENDATA = 0;
-    error_message.DATA = NULL;
-    send_format_message(socket, &error_message);
-}
-
-
-void subscribe_request( server_t *server,client_t *client) {
-    //verification de l'inscription
-    if(check_connection(server,client->name) != 0)
-        send_message("Vous n'etes pas inscrit !!!\n",client);
-    //reception des messages
-    format_message_t rcpt;
-    if(reception_message_format(client->socket, &rcpt) == -1) {
-        send_error_message(client->socket)
-    }
-    // Générer l'adresse de multidiffusion en fonction de numfil
-    char multicastAddr[INET6_ADDRSTRLEN];
-    snprintf(multicastAddr, sizeof(multicastAddr), "FF12::%d", rcpt.NUMFIL);
-
-
-    format_message_t envoi;
-    prepare_format_message(&envoi, client->id, rcpt.NUMFIL, DEFAULT_MULTI_PORT+rcpt.NUMFIL, multicastAddr);
-
-    if (send_format_message(clientSocket, &envoi) == -1) {
-        perror("Erreur lors de l'envoi du message d'abonnement");
-        // Gérer l'erreur et terminer la connexion si nécessaire
-    }
-
-    // Libérer les ressources si nécessaire
-    free(envoi.DATA);
-}
-
-int send_message(char *msg, client_t client)
+void get_thread_messages(int thread_id, server_t *server, client_t *client)
 {
-    if (write(client.socket, msg, strlen(msg)) < 0)
-        return -1;
-    return 0;
-}
+    Thread *thread = NULL;
 
-int server_client_activity(server_t *server)
-{
-    client_t *client = NULL;
-
-    for (int i = 0; i < server->nb_clients; i++)
+    // trouver le fil
+    for (int i = 0; i < server->nb_threads; ++i)
     {
-        client = &server->clients[i];
-        if (FD_ISSET(client->socket, &server->readfds))
+        if (server->threads[i].id == thread_id)
         {
-            client->valread = read(client->socket, client->buffer, BUF_LEN);
-            switch (client->valread)
-            {
-            case -1:
-                return -1;
-            case 0:
-                close(client->socket);
-                client->socket = -1;
-                break;
-            default:
-                printf("Received from %d: %s\n", client->socket, client->buffer);
-                free(client->buffer); // Libérer la mémoire allouée pour client->buffer
-                client->buffer = malloc(sizeof(char) * BUF_LEN);
-                break;
-            }
+            thread = &server->threads[i];
+            break;
         }
     }
-    return 0;
-}
+
+    // Si le fil n'existe pas, retourner une erreur
+    if (thread == NULL)
+    {
+        send_message("Ce fil n'existe pas\n", *client);
+        return;
+    }
+
+    Message *message = thread->messages;
+
+    // Parcourir tous les messages du fil et les envoyer au client
+    while (message != NULL)
+    {
+        char msg[1024];
+
+        // Créer un message sous la forme "id: contenu"
+        sprintf(msg, "%d: %s\n", message->author_id, message->content);
+
+        // Envoyer le message au client
+        send_message(msg, *client);
+
+        // Passer au message suivant
+        message = message->next;
+    }
+}*/
 
 int server_activity(server_t *server)
 {
@@ -362,9 +336,7 @@ int server_activity(server_t *server)
     {
         if ((new_socket = accept(server->socket, (struct sockaddr *)&server->address, (socklen_t *)&server->addrlen)) < 0)
             return -1;
-        char ip_address[INET6_ADDRSTRLEN];
-        inet_ntop(AF_INET6, &(server->address.sin6_addr), ip_address, INET6_ADDRSTRLEN);
-        printf("%sNew connection, socket fd is %d, IP is: %s, port: %d%s\n", CYAN,new_socket, ip_address, ntohs(server->address.sin6_port), RESET);
+        printf("New connection, socket fd is %d, ip is : %s, port : %d\n", new_socket, inet_ntoa(server->address.sin_addr), ntohs(server->address.sin_port));
         for (int i = 0; i < MAX_CLIENT; i++)
         {
             if (server->clients[i].socket == -1)
@@ -372,18 +344,34 @@ int server_activity(server_t *server)
                 server->clients[i].socket = new_socket;
                 printf("Adding to list of sockets as %d\n", i);
                 server->nb_clients++;
-                server->clients[i].buffer = malloc(sizeof(char) * BUF_LEN);
+                server->clients[i].buffer = malloc(sizeof(char) * 1024);
                 server->clients[i].valread = 0;
-                server->clients[i].name = malloc(sizeof(char) * BUF_LEN);
+                server->clients[i].name = malloc(sizeof(char) * 1024);
                 server->clients[i].actual_cmd = 0;
-                server->clients[i].id = i + 1;
+                server->clients[i].id = server->nb_clients + 1;
                 printf("%d, %d\n", server->clients[i].socket, server->nb_clients);
                 // if id != 0 -/> connection
-                if (connection(server, i) != 0)
+                char *msg = malloc(sizeof(char) * 1024);
+                read(server->clients[i].socket, msg, 1024);
+                printf("%s\n", msg);
+                char **buf = string_to_tab(msg, ':');
+                printf("%s - %s - %s\n", buf[0], buf[1], buf[2]);
+                if (atoi(buf[0]) == 0)
                 {
-                    close(server->clients[i].socket);
-                    server->clients[i].socket = -1;
-                    server->nb_clients--;
+                    printf("Connection\n");
+                    if (connection(server, i) != 0)
+                    {
+                        close(server->clients[i].socket);
+                        server->clients[i].socket = -1;
+                        server->nb_clients--;
+                    }
+                }
+                else
+                {
+                    if (strcmp(buf[0], "1") == 0)
+                    {
+                        post_message(buf[3], atoi(buf[2]), atoi(buf[1]), server, &server->clients[i]);
+                    }
                 }
                 break;
             }
@@ -431,20 +419,12 @@ server_t create_server(int port)
     server.usernames = malloc(sizeof(char *) * 1);
     server.usernames[0] = "NULL";
     server.user_nb = 0;
-    if ((server.socket = socket(AF_INET6, SOCK_STREAM, 0)) < 0)
+    if ((server.socket = socket(AF_INET, SOCK_STREAM, 0)) < 0)
         exit(84);
-    int no = 0;
-    int r = setsockopt(server.socket, IPPROTO_IPV6, IPV6_V6ONLY, &no, sizeof(no));
-    if(r < 0)
-        fprintf(stderr, "échec de setsockopt() : (%d)\n", errno);
-    int yes = 1;
-    r = setsockopt(server.socket, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
-    if(r < 0)
-        fprintf(stderr, "échec de setsockopt() : (%d)\n", errno);   
-    server.address = (struct sockaddr_in6){
-        .sin6_family = AF_INET6,
-        .sin6_addr.s6_addr = INADDR_ANY,
-        .sin6_port = htons(port)};
+    server.address = (struct sockaddr_in){
+        .sin_family = AF_INET,
+        .sin_addr.s_addr = INADDR_ANY,
+        .sin_port = htons(port)};
     server.addrlen = sizeof(server.address);
     if (bind(server.socket, (struct sockaddr *)&server.address, server.addrlen) < 0)
         exit(84);
@@ -459,7 +439,7 @@ server_t create_server(int port)
 
 int server()
 {
-    server_t server = create_server(9493);
+    server_t server = create_server(7777);
     printf("Server is running on port %d:%d\n", server.port, server.socket);
     if (server_run(&server) != 0)
         return -1;
