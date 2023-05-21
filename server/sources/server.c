@@ -279,6 +279,18 @@ int send_format_message(int socket, format_message_t *message) {
     return result;
 }
 
+void send_error_message(int socket) {
+    format_message_t error_message;
+    error_message.CODEREQ = 31;
+    error_message.ID = 0;
+    error_message.NUMFIL = 0;
+    error_message.NB = 0;
+    error_message.LENDATA = 0;
+    error_message.DATA = NULL;
+    send_format_message(socket, &error_message);
+}
+
+
 void subscribe_request( server_t *server,client_t *client) {
     //verification de l'inscription
     if(check_connection(server,client->name) != 0)
@@ -286,7 +298,7 @@ void subscribe_request( server_t *server,client_t *client) {
     //reception des messages
     format_message_t rcpt;
     if(reception_message_format(client->socket, &rcpt) == -1) {
-        //envoi du message formater derreur
+        send_error_message(client->socket)
     }
     // Générer l'adresse de multidiffusion en fonction de numfil
     char multicastAddr[INET6_ADDRSTRLEN];
