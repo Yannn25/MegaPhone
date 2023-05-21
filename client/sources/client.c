@@ -2,29 +2,28 @@
 #include "client.h"
 #include "color.h"
 
-char *itoa(int nb)
+char *itoa(int num)
 {
-    char *str = malloc(sizeof(char) * 1024);
-    int i = 0;
-    int j = 0;
-    int k = 0;
-
-    if (nb == 0)
-        return "0";
-    while (nb > 0)
+    if (num == 0)
     {
-        str[i] = nb % 10 + '0';
-        nb /= 10;
-        i++;
+        char *ret = malloc(2);
+        strcpy(ret, "0");
+        return ret;
     }
-    str[i] = '\0';
-    for (j = 0, k = i - 1; j < k; j++, k--)
+    int len = 0, temp = num;
+    while (temp)
     {
-        str[j] ^= str[k];
-        str[k] ^= str[j];
-        str[j] ^= str[k];
+        len++;
+        temp /= 10;
     }
-    return str;
+    char *ret = malloc(len + 1);
+    for (int i = len - 1; i >= 0; i--)
+    {
+        ret[i] = (num % 10) + '0';
+        num /= 10;
+    }
+    ret[len] = '\0';
+    return ret;
 }
 
 char **string_to_tab(char *str, char sep)
@@ -71,6 +70,11 @@ int connection(client_t *client)
     char *buff = malloc(sizeof(char) * 1024);
     int valread = 0;
     valread = read(client->socket, buff, 1024);
+    if (valread < 0)
+    {
+        perror("read in connection");
+        return -1;
+    }
     if (strcmp(buff, "Etes vous inscrit ?(yes/no)\n") == 0)
     {
         printf("%s", buff);
@@ -122,7 +126,7 @@ int connect_express(int port, char *ip, client_t *client)
 
 void post_message(client_t *client, int thread_num)
 {
-    char *message = malloc(sizeof(char) * 1024);
+    char *message = calloc(1024, sizeof(char));
     client->cmd_nb = 1;
     strcat(message, itoa(thread_num));
     strcat(message, ":");
@@ -140,9 +144,47 @@ void post_message(client_t *client, int thread_num)
     printf("%s\n", buff);
 }
 
+void get_last_n_messages(int n, int thread_id, client_t *client)
+{
+    char request[1024];
+    client->cmd_nb = 2;
+
+    // Créer une requête pour récupérer les n derniers messages du fil d'identifiant thread_id
+    sprintf(request, "GET_LAST_N_MESSAGES:%d:%d\n", n, thread_id);
+
+    // Envoyer la requête au serveur
+    if (write(client->socket, request, strlen(request)) < 0)
+    {
+        printf("Failed to send request to server\n");
+        return;
+    }
+
+    // Réception de la réponse du serveur
+    int num_messages = 0;
+    if (read(client->socket, &num_messages, sizeof(int)) < 0)
+    {
+        printf("Failed to read from server\n");
+        return;
+    }
+
+    // Réception des messages
+    for (int i = 0; i < num_messages; ++i)
+    {
+        char message[1024];
+        if (read(client->socket, message, sizeof(message)) < 0)
+        {
+            printf("Failed to read from server\n");
+            return;
+        }
+
+        printf("Received message: %s\n", message);
+    }
+}
+
 void menu(client_t *client)
 {
-    char *choice = malloc(sizeof(char) * 1024);
+    char *choice = NULL;
+    size_t len = 0;
     while (1)
     {
         printf("1. Poster un billet\n");
@@ -150,19 +192,28 @@ void menu(client_t *client)
         printf("3. s'abonner à un fil\n");
         printf("4. Quitter\n");
         printf("Choisissez une option: ");
-        int len = 0;
         getline(&choice, &len, stdin);
         printf("Vous avez choisi l'option %s", choice);
 
         if (strncmp(choice, "1", 1) == 0)
         {
-            printf("Ecrivez votre billet: ");
-            getline(&client->buffer, &len, stdin);
+            printf("Ecrivez votre billet: \n");
+            if (read(0, client->buffer, 1024) < 0)
+            {
+                perror("read failed in menu");
+                return;
+            }
+            // getline(&client->buffer, &len, stdin);
 
             // demande le numéro du fil
-            printf("Entrer le numéro du fil: ");
-            char thread_num_str[1024];
-            getline(&thread_num_str, &len, stdin);
+            printf("Entrer le numéro du fil: \n");
+            char thread_num_str[1024] = {0};
+            if (read(0, thread_num_str, 1024) < 0)
+            {
+                perror("read failed in menu");
+                return;
+            }
+            // getline(&thread_num_str, &len, stdin);
             int thread_num = atoi(thread_num_str);
 
             // appeler la fonction post_message()
@@ -170,37 +221,40 @@ void menu(client_t *client)
         }
         else if (strncmp(choice, "2", 1) == 0)
         {
-            printf("Demande de la liste des billets\n");
+            printf("Liste des billets :\n");
 
             // demander le numéro du fil
-            printf("Entrer le numéro du fil: ");
-            char thread_num_str[1024];
-            getline(&thread_num_str, &len, stdin);
+            printf("Entrer le numéro du fil: \n");
+            char thread_num_str[1024] = {0};
+            if (read(0, thread_num_str, 1024) < 0)
+            {
+                perror("read failed in menu");
+                return;
+            }
+            // getline(&thread_num_str, &len, stdin);
             int thread_num = atoi(thread_num_str);
 
-            // envoyer une requête au serveur pour obtenir les messages du fil
-            client->cmd_nb = 2;
-            char *message = itoa(thread_num);
-            connect_express(client->port, client->ip, client);
-            if (send_message(message, client->socket, client) < 0)
+            // demander combien de messages à afficher
+            printf("Combien de messages voulez-vous afficher? \n");
+            char num_messages_str[1024] = {0};
+            if (read(0, num_messages_str, 1024) < 0)
             {
-                printf("Erreur lors de l'envoi de la demande\n");
+                perror("read failed in menu");
+                return;
             }
+            // getline(&num_messages_str, &len, stdin);
+            int num_messages = atoi(num_messages_str);
 
-            // lire les messages du serveur
-            char *buff = malloc(sizeof(char) * 1024);
-            while (read(client->socket, buff, 1024) > 0)
-            {
-                printf("%s\n", buff);
-            }
+            // appeler la fonction get_last_n_messages()
+            get_last_n_messages(num_messages, thread_num, client);
         }
-
         else if (strncmp(choice, "3", 1) == 0)
         {
             printf("Demande d'abonnement à un fil\n");
         }
         else if (strncmp(choice, "4", 1) == 0)
         {
+            free(choice);
             close(client->socket);
             exit(0);
         }
@@ -208,12 +262,16 @@ void menu(client_t *client)
         {
             printf("Choix invalide. Essayez encore.\n");
         }
+        free(choice);
+        choice = NULL;
+        len = 0;
     }
 }
 
 int command_handler(client_t *client)
 {
     menu(client);
+    return 0;
 }
 
 int connect_to_server(int port, char *ip)
@@ -261,6 +319,6 @@ int connect_to_server(int port, char *ip)
 
 int client()
 {
-    connect_to_server(7777, "127.0.0.1");
+    connect_to_server(7778, "127.0.0.1");
     return 0;
 }

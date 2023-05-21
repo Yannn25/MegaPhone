@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "istream": "c",
+        "__threading_support": "c",
+        "__locale": "c"
+    }
+}

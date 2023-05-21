@@ -214,6 +214,7 @@ int connection(server_t *server, int i)
         return -1;
     }
     server->clients[i].buffer = malloc(sizeof(char) * 1024);
+    return 0;
 }
 
 int post_message(char *message_content, int thread_id, int id, server_t *server, client_t *client)
@@ -282,18 +283,15 @@ int post_message(char *message_content, int thread_id, int id, server_t *server,
     char *msg = malloc(sizeof(char) * 1024);
     msg = strcat(msg, "Votre message a été ajouté\n");
     send_message(msg, *client);
-
     return 0;
 }
 
-/*Pour lister les billets mais à optimiser
-
-void get_thread_messages(int thread_id, server_t *server, client_t *client)
+void get_last_n_messages_from_server(int n, int thread_id, server_t *server, client_t *client)
 {
+    // Trouver le thread
     Thread *thread = NULL;
-
-    // trouver le fil
-    for (int i = 0; i < server->nb_threads; ++i)
+    int i = 0;
+    for (; i < server->nb_threads; ++i)
     {
         if (server->threads[i].id == thread_id)
         {
@@ -302,34 +300,31 @@ void get_thread_messages(int thread_id, server_t *server, client_t *client)
         }
     }
 
-    // Si le fil n'existe pas, retourner une erreur
     if (thread == NULL)
     {
-        send_message("Ce fil n'existe pas\n", *client);
+        // Pas de thread avec cet ID
+        perror("Aucun thread");
         return;
     }
 
+    // Parcourir les messages à l'envers et envoyer les n derniers
+    int count = 0;
     Message *message = thread->messages;
-
-    // Parcourir tous les messages du fil et les envoyer au client
-    while (message != NULL)
+    while (message != NULL && count < n)
     {
         char msg[1024];
-
-        // Créer un message sous la forme "id: contenu"
-        sprintf(msg, "%d: %s\n", message->author_id, message->content);
-
-        // Envoyer le message au client
-        send_message(msg, *client);
-
-        // Passer au message suivant
+        sprintf(msg, "Message from %d: %s\n", message->author_id, message->content);
+        // send_message(msg, *client);
+        write(client->socket, msg, 1024);
         message = message->next;
+        count++;
     }
-}*/
+}
 
 int server_activity(server_t *server)
 {
-    int activity = 0;
+    printf("server activity\n");
+    // int activity = 0;
     int new_socket = -1;
 
     if (FD_ISSET(server->socket, &server->readfds))
@@ -371,6 +366,18 @@ int server_activity(server_t *server)
                     if (strcmp(buf[0], "1") == 0)
                     {
                         post_message(buf[3], atoi(buf[2]), atoi(buf[1]), server, &server->clients[i]);
+                    }
+                    else
+                    {
+                        int thread_id = atoi(buf[2]);
+                        int n = atoi(buf[1]);
+                        get_last_n_messages_from_server(n, thread_id, server, &server->clients[i]);
+                    }
+                    if (strcmp(buf[0], "GET_LAST_N_MESSAGES") == 0)
+                    {
+                        int thread_id = atoi(buf[1]);
+                        int n = atoi(buf[2]);
+                        get_last_n_messages_from_server(n, thread_id, server, &server->clients[i]);
                     }
                 }
                 break;
@@ -420,16 +427,25 @@ server_t create_server(int port)
     server.usernames[0] = "NULL";
     server.user_nb = 0;
     if ((server.socket = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+    {
+        free(server.usernames);
         exit(84);
+    }
     server.address = (struct sockaddr_in){
         .sin_family = AF_INET,
         .sin_addr.s_addr = INADDR_ANY,
         .sin_port = htons(port)};
     server.addrlen = sizeof(server.address);
     if (bind(server.socket, (struct sockaddr *)&server.address, server.addrlen) < 0)
+    {
+        free(server.usernames);
         exit(84);
+    }
     if (listen(server.socket, 3) < 0)
+    {
+        free(server.usernames);
         exit(84);
+    }
     server.clients = malloc(sizeof(client_t) * MAX_CLIENT);
     for (int i = 0; i < MAX_CLIENT; i++)
         server.clients[i].socket = -1;
@@ -439,9 +455,13 @@ server_t create_server(int port)
 
 int server()
 {
-    server_t server = create_server(7777);
+    server_t server = create_server(7778);
     printf("Server is running on port %d:%d\n", server.port, server.socket);
     if (server_run(&server) != 0)
+    {
+        free(server.usernames);
         return -1;
+    }
+    free(server.usernames);
     return 0;
 }
