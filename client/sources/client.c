@@ -60,16 +60,12 @@ char **string_to_tab(char *str, char sep)
 
 int send_message(char *message, int socket, client_t *client)
 {
-    char *msg = malloc(sizeof(char) * BUF_LEN);
-    strcat(msg, itoa(client->cmd_nb));
-    strcat(msg, ":");
-    strcat(msg, itoa(client->id));
-    strcat(msg, ":");
-    strcat(msg, message);
+    char *msg = malloc(sizeof(char) * 1024);
+    printf("%d %d\n", client->cmd_nb, client->id);
+    sprintf(msg, "%d:%d:%s", client->cmd_nb, client->id, message);
     if (write(socket, msg, strlen(msg)) < 0)
         return -1;
     return 0;
-    free(msg);
 }
 
 int connection(client_t *client)
@@ -112,25 +108,41 @@ int connection(client_t *client)
     free(buff);
 }
 
+int connect_express(int port, char *ip, client_t *client)
+{
+    int sock = 0;
+    struct sockaddr_in serv_addr;
+    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+        return -1;
+    serv_addr = (struct sockaddr_in){.sin_family = AF_INET, .sin_port = htons(port)};
+    if (inet_pton(AF_INET, ip, &serv_addr.sin_addr) <= 0)
+        return -1;
+    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
+        return -1;
+    client->socket = sock;
+    return 0;
+}
+
 void post_message(client_t *client, int thread_num)
 {
-    char *message = malloc(sizeof(char) * BUF_LEN);
-
-    strcat(message, "1:");             // la commande pour poster un message
-    strcat(message, itoa(client->id)); // ajouter l'id du client
+    char *message = malloc(sizeof(char) * 1024);
+    client->cmd_nb = 1;
+    strcat(message, itoa(thread_num));
     strcat(message, ":");
-    strcat(message, itoa(thread_num)); // ajouter le numéro du fil
-    strcat(message, ":");
-    strcat(message, client->buffer); // ajouter le message du client
-
+    strcat(message, client->buffer);
     // envoyer le message
+    printf("%d - %d - %s\n", client->cmd_nb, client->id, message);
+    connect_express(client->port, client->ip, client);
+    printf("%d - %d - %s\n", client->cmd_nb, client->id, message);
     if (send_message(message, client->socket, client) < 0)
     {
         printf("Erreur lors de l'envoi du message\n");
     }
-
-    free(message);
+    char *buff = malloc(sizeof(char) * 1024);
+    read(client->socket, buff, 1024);
+    printf("%s\n", buff);
 }
+
 // Fonction pour envoyer un message d'abonnement au serveur
 int send_subscribe_message(int socket, subscribe_message_t *message) {
     int result = 0;

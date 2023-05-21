@@ -169,12 +169,13 @@ int connection(server_t *server, int i)
     server->clients[i].buffer = malloc(sizeof(char) * BUF_LEN);
 }
 
-int post_message(char *message_content, int thread_id, client_t *client, server_t *server)
+int post_message(char *message_content, int thread_id, int id, server_t *server, client_t *client)
 {
+    printf("%d - %d - %d\n", id, thread_id, server->nb_threads);
     // vérifier si l'utilisateur est inscrit
-    if (check_connection(server, client->name) == -1)
+    if (id <= 0)
     {
-        send_message("Vous n'êtes pas inscrit\n", *client);
+        send_message("Vous n'etes pas inscrit\n", *client);
         return -1;
     }
 
@@ -189,11 +190,21 @@ int post_message(char *message_content, int thread_id, client_t *client, server_
         }
     }
 
-    // Si le fil n'existe pas, retourner une erreur
     if (thread == NULL)
     {
-        send_message("Ce fil n'existe pas\n", *client);
-        return -1;
+        // Vérifier que vous n'avez pas atteint le nombre maximum de fils
+        if (server->nb_threads >= MAX_THREADS)
+        {
+            send_message("Nombre maximal de fils atteint. Impossible de créer un nouveau fil.\n", *client);
+            return -1;
+        }
+        // Créer un nouveau fil
+        thread = &server->threads[server->nb_threads];
+        thread->id = server->nb_threads;
+        thread->name = NULL; // ou donner un nom au fil, si vous le souhaitez
+        thread->messages = NULL;
+        // Mettre à jour le nombre de fils
+        server->nb_threads++;
     }
 
     // Créer un nouveau message
@@ -219,12 +230,54 @@ int post_message(char *message_content, int thread_id, client_t *client, server_
     }
 
     // Ensuite, envoyer une confirmation au client
-    char *msg = malloc(sizeof(char) * BUF_LEN);
+    char *msg = malloc(sizeof(char) * 1024);
     msg = strcat(msg, "Votre message a été ajouté\n");
     send_message(msg, *client);
 
     return 0;
 }
+
+/*Pour lister les billets mais à optimiser
+
+void get_thread_messages(int thread_id, server_t *server, client_t *client)
+{
+    Thread *thread = NULL;
+
+    // trouver le fil
+    for (int i = 0; i < server->nb_threads; ++i)
+    {
+        if (server->threads[i].id == thread_id)
+        {
+            thread = &server->threads[i];
+            break;
+        }
+    }
+
+    // Si le fil n'existe pas, retourner une erreur
+    if (thread == NULL)
+    {
+        send_message("Ce fil n'existe pas\n", *client);
+        return;
+    }
+
+    Message *message = thread->messages;
+
+    // Parcourir tous les messages du fil et les envoyer au client
+    while (message != NULL)
+    {
+        char msg[1024];
+
+        // Créer un message sous la forme "id: contenu"
+        sprintf(msg, "%d: %s\n", message->author_id, message->content);
+
+        // Envoyer le message au client
+        send_message(msg, *client);
+
+        // Passer au message suivant
+        message = message->next;
+    }
+}*/
+
 int receive_format_message(int socket, format_message_t *message) {
     int result = 0;
     int temp;
