@@ -240,7 +240,6 @@ int post_message(char *message_content, int thread_id, int id, server_t *server,
 
     if (thread == NULL)
     {
-        // Vérifier que vous n'avez pas atteint le nombre maximum de fils
         if (server->nb_threads >= MAX_THREADS)
         {
             send_message("Nombre maximal de fils atteint. Impossible de créer un nouveau fil.\n", *client);
@@ -250,7 +249,7 @@ int post_message(char *message_content, int thread_id, int id, server_t *server,
         // Créer un nouveau fil
         thread = &server->threads[server->nb_threads];
         thread->id = server->nb_threads;
-        thread->name = NULL; // ou donner un nom au fil, si vous le souhaitez
+        thread->name = NULL; // donner un nom au fil
         thread->messages = NULL;
 
         // Mettre à jour le nombre de fils
@@ -279,37 +278,41 @@ int post_message(char *message_content, int thread_id, int id, server_t *server,
         last_message->next = new_message;
     }
 
-    // Ensuite, envoyer une confirmation au client
+    // confirmation au client
     char *msg = malloc(sizeof(char) * 1024);
     msg = strcat(msg, "Votre message a été ajouté\n");
     send_message(msg, *client);
     return 0;
 }
 
-int subscribe_request( int thread_id, int id, server_t *server,client_t *client) {
+int subscribe_request(int thread_id, int id, server_t *server, client_t *client)
+{
     printf("%d - %d - %d\n", id, thread_id, server->nb_threads);
-    if (id <= 0) {
+    if (id <= 0)
+    {
         send_message("Vous n'etes pas inscrit\n", *client);
         return -1;
     }
     // trouver le fil
     Thread *thread = NULL;
-    for (int i = 0; i < server->nb_threads; ++i) {
-        if (server->threads[i].id == thread_id){
+    for (int i = 0; i < server->nb_threads; ++i)
+    {
+        if (server->threads[i].id == thread_id)
+        {
             thread = &server->threads[i];
             break;
         }
     }
-    //Sinon non existant
-    if(thread == NULL) {
+    if (thread == NULL)
+    {
         send_message("\e[0;35mLe fil saisie n'existe pas encore\e[0m", *client);
         return -1;
     }
     // Générer l'adresse de multidiffusion en fonction de numfil
     char multicastAddr[INET_ADDRSTRLEN];
-     snprintf(multicastAddr, INET_ADDRSTRLEN, "239.0.0.%d", thread_id);
-    //definition du port en fonction de numfil également
-    int multi_port = DEFAULT_MULTI_PORT+thread_id;
+    snprintf(multicastAddr, INET_ADDRSTRLEN, "239.0.0.%d", thread_id);
+    // definition du port en fonction de numfil également
+    int multi_port = DEFAULT_MULTI_PORT + thread_id;
     char message[BUF_LEN];
     sprintf(message, "Adresse de multidiffusion : %s sur le Port : %d", multicastAddr, multi_port);
 
@@ -317,7 +320,6 @@ int subscribe_request( int thread_id, int id, server_t *server,client_t *client)
 
     return 0;
 }
-
 
 void get_last_n_messages_from_server(int n, int thread_id, server_t *server, client_t *client)
 {
@@ -353,7 +355,6 @@ void get_last_n_messages_from_server(int n, int thread_id, server_t *server, cli
         count++;
     }
 }
-
 
 int server_activity(server_t *server)
 {
@@ -402,20 +403,23 @@ int server_activity(server_t *server)
                     if (strcmp(buf[0], "1") == 0)
                     {
                         post_message(buf[3], atoi(buf[2]), atoi(buf[1]), server, &server->clients[i]);
-                    } else if(strcmp(buf[0],"3") == 0) {
-                        subscribe_request( atoi(buf[4]), atoi(buf[3]), server, &server->clients[i]);
-                    } else  if (strcmp(buf[0], "GET_LAST_N_MESSAGES") == 0) {
+                    }
+                    else if (strcmp(buf[0], "3") == 0)
+                    {
+                        subscribe_request(atoi(buf[4]), atoi(buf[3]), server, &server->clients[i]);
+                    }
+                    else if (strcmp(buf[0], "GET_LAST_N_MESSAGES") == 0)
+                    {
                         int thread_id = atoi(buf[2]);
                         int n = atoi(buf[1]);
                         get_last_n_messages_from_server(n, thread_id, server, &server->clients[i]);
                     }
-                     else
+                    else
                     {
                         int thread_id = atoi(buf[1]);
                         int n = atoi(buf[2]);
                         get_last_n_messages_from_server(n, thread_id, server, &server->clients[i]);
                     }
-                    
                 }
                 break;
             }
@@ -467,12 +471,12 @@ server_t create_server(int port)
         exit(84);
     int no = 0;
     int r = setsockopt(server.socket, IPPROTO_IPV6, IPV6_V6ONLY, &no, sizeof(no));
-    if(r < 0)
+    if (r < 0)
         fprintf(stderr, "échec de setsockopt() : (%d)\n", errno);
     int yes = 1;
     r = setsockopt(server.socket, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
-    if(r < 0)
-        fprintf(stderr, "échec de setsockopt() : (%d)\n", errno);   
+    if (r < 0)
+        fprintf(stderr, "échec de setsockopt() : (%d)\n", errno);
     server.address = (struct sockaddr_in6){
         .sin6_family = AF_INET6,
         .sin6_addr.s6_addr = INADDR_ANY,
@@ -495,10 +499,9 @@ server_t create_server(int port)
     return server;
 }
 
-
 int server()
 {
-    server_t server = create_server(7778);
+    server_t server = create_server(7777);
     printf("Server is running on port %d:%d\n", server.port, server.socket);
     if (server_run(&server) != 0)
     {

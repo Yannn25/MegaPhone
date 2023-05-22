@@ -229,7 +229,6 @@ void menu(client_t *client)
             }
             // getline(&client->buffer, &len, stdin);
 
-            // demande le numéro du fil
             printf("Entrer le numéro du fil: \n");
             char thread_num_str[1024] = {0};
             if (read(0, thread_num_str, 1024) < 0)
@@ -240,14 +239,11 @@ void menu(client_t *client)
             // getline(&thread_num_str, &len, stdin);
             int thread_num = atoi(thread_num_str);
 
-            // appeler la fonction post_message()
             post_message(client, thread_num);
         }
         else if (strncmp(choice, "2", 1) == 0)
         {
             printf("Liste des billets :\n");
-
-            // demander le numéro du fil
             printf("Entrer le numéro du fil: \n");
             char thread_num_str[1024] = {0};
             if (read(0, thread_num_str, 1024) < 0)
@@ -268,8 +264,6 @@ void menu(client_t *client)
             }
             // getline(&num_messages_str, &len, stdin);
             int num_messages = atoi(num_messages_str);
-
-            // appeler la fonction get_last_n_messages()
             get_last_n_messages(num_messages, thread_num, client);
         }
         else if (strncmp(choice, "3", 1) == 0)
@@ -331,7 +325,7 @@ int connect_to_server(int port, char *ip)
         return -1;
     }
     printf("Connected to server\n");
-    close(client.socket); // This should be placed here after the infinite loop.
+    close(client.socket);
 
     while (1)
     {
@@ -343,6 +337,6 @@ int connect_to_server(int port, char *ip)
 
 int client()
 {
-    connect_to_server(7778, "127.0.0.1");
+    connect_to_server(7777, "127.0.0.1");
     return 0;
 }
