@@ -144,6 +144,26 @@ void post_message(client_t *client, int thread_num)
     printf("%s\n", buff);
 }
 
+
+void abonnement_fil(client_t *client, int num) {
+    char *message = malloc(sizeof(char) * BUF_LEN);
+    strcat(message, "3:");           
+    strcat(message, itoa(client->id)); 
+    strcat(message, ":");
+    strcat(message, itoa(num));
+    strcat(message, ":0:0");
+    // Envoye du message d'abonnement au serveur
+    send_message(message, client->socket, client); 
+    //Reception de la réponse du serveur
+    char *buff = malloc(sizeof(char) * BUF_LEN);
+    read(client->socket, buff, BUF_LEN);
+    printf("%s\n", buff);
+    string_to_tab(buff,':');
+    // Enregistrer l'adresse d'abonnement
+    client->multi_ip = strdup(buff[1]);
+    client->multi_port = atoi(buff[3]);  
+}
+
 void get_last_n_messages(int n, int thread_id, client_t *client)
 {
     char request[1024];
