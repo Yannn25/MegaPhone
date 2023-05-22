@@ -286,6 +286,39 @@ int post_message(char *message_content, int thread_id, int id, server_t *server,
     return 0;
 }
 
+int subscribe_request( int thread_id, int id, server_t *server,client_t *client) {
+    printf("%d - %d - %d\n", id, thread_id, server->nb_threads);
+    if (id <= 0) {
+        send_message("Vous n'etes pas inscrit\n", *client);
+        return -1;
+    }
+    // trouver le fil
+    Thread *thread = NULL;
+    for (int i = 0; i < server->nb_threads; ++i) {
+        if (server->threads[i].id == thread_id){
+            thread = &server->threads[i];
+            break;
+        }
+    }
+    //Sinon non existant
+    if(thread == NULL) {
+        send_message("\e[0;35mLe fil saisie n'existe pas encore\e[0m", *client);
+        return -1;
+    }
+    // Générer l'adresse de multidiffusion en fonction de numfil
+    char multicastAddr[INET_ADDRSTRLEN];
+     snprintf(multicastAddr, INET_ADDRSTRLEN, "239.0.0.%d", thread_id);
+    //definition du port en fonction de numfil également
+    int multi_port = DEFAULT_MULTI_PORT+thread_id;
+    char message[BUF_LEN];
+    sprintf(message, "Adresse de multidiffusion : %s sur le Port : %d", multicastAddr, multi_port);
+
+    send_message(message, *client);
+
+    return 0;
+}
+
+
 void get_last_n_messages_from_server(int n, int thread_id, server_t *server, client_t *client)
 {
     // Trouver le thread
@@ -321,6 +354,7 @@ void get_last_n_messages_from_server(int n, int thread_id, server_t *server, cli
     }
 }
 
+
 int server_activity(server_t *server)
 {
     printf("server activity\n");
@@ -332,8 +366,8 @@ int server_activity(server_t *server)
         if ((new_socket = accept(server->socket, (struct sockaddr *)&server->address, (socklen_t *)&server->addrlen)) < 0)
             return -1;
         char ip_address[INET6_ADDRSTRLEN];
-inet_ntop(AF_INET6, &(server->address.sin6_addr), ip_address, INET6_ADDRSTRLEN);
-printf("New connection, socket fd is %d, ip is : %s, port : %d\n", new_socket, ip_address, ntohs(server->address.sin6_port));
+        inet_ntop(AF_INET6, &(server->address.sin6_addr), ip_address, INET6_ADDRSTRLEN);
+        printf("New connection, socket fd is %d, ip is : %s, port : %d\n", new_socket, ip_address, ntohs(server->address.sin6_port));
         for (int i = 0; i < MAX_CLIENT; i++)
         {
             if (server->clients[i].socket == -1)
@@ -368,19 +402,20 @@ printf("New connection, socket fd is %d, ip is : %s, port : %d\n", new_socket, i
                     if (strcmp(buf[0], "1") == 0)
                     {
                         post_message(buf[3], atoi(buf[2]), atoi(buf[1]), server, &server->clients[i]);
-                    }
-                    else
-                    {
+                    } else if(strcmp(buf[0],"3") == 0) {
+                        subscribe_request( atoi(buf[4]), atoi(buf[3]), server, &server->clients[i]);
+                    } else  if (strcmp(buf[0], "GET_LAST_N_MESSAGES") == 0) {
                         int thread_id = atoi(buf[2]);
                         int n = atoi(buf[1]);
                         get_last_n_messages_from_server(n, thread_id, server, &server->clients[i]);
                     }
-                    if (strcmp(buf[0], "GET_LAST_N_MESSAGES") == 0)
+                     else
                     {
                         int thread_id = atoi(buf[1]);
                         int n = atoi(buf[2]);
                         get_last_n_messages_from_server(n, thread_id, server, &server->clients[i]);
                     }
+                    
                 }
                 break;
             }
