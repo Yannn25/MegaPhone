@@ -286,97 +286,36 @@ int post_message(char *message_content, int thread_id, int id, server_t *server,
     return 0;
 }
 
-
-int receive_format_message(int socket, format_message_t *message) {
-    int result = 0;
-    int temp;
-
-    // Réception des champs de l'entête
-    result += recv(socket, &temp, sizeof(int), 0);
-    message->CODEREQ = ntohl(temp);
-    result += recv(socket, &temp, sizeof(int), 0);
-    message->ID = ntohl(temp);
-    result += recv(socket, &temp, sizeof(int), 0);
-    message->NUMFIL = ntohl(temp);
-    result += recv(socket, &temp, sizeof(int), 0);
-    message->NB = ntohl(temp);
-    result += recv(socket, &temp, sizeof(int), 0);
-    message->LENDATA = ntohl(temp);
-
-    // Allocation de mémoire pour les données
-    message->DATA = malloc(message->LENDATA);
-    if (message->DATA == NULL) {
-        perror("Erreur d'allocation de mémoire pour les données");
+int subscribe_request( int thread_id, int id, server_t *server,client_t *client) {
+    printf("%d - %d - %d\n", id, thread_id, server->nb_threads);
+    if (id <= 0) {
+        send_message("Vous n'etes pas inscrit\n", *client);
         return -1;
     }
-    result += recv(socket, message->DATA, message->LENDATA, 0);
-
-    if (result == -1) {
-        perror("Erreur lors de la réception du message");
-        free(message->DATA);
-        return -1;
+    // trouver le fil
+    Thread *thread = NULL;
+    for (int i = 0; i < server->nb_threads; ++i) {
+        if (server->threads[i].id == thread_id){
+            thread = &server->threads[i];
+            break;
+        }
     }
-
-    return result;
-}
-
-
-void prepare_format_message(format_message_t *message, int clientID, int numfil, int port, const char *multicastAddr) {
-    message->CODEREQ = htons(4);
-    message->ID = htons(clientID);
-    message->NUMFIL = htons(numfil);
-    message->NB = htons(port);
-    message->LENDATA = 0; 
-    message->DATA = strdup(multicastAddr); // Dupliquer l'adresse de multidiffusion pour la transmission
-}
-
-int send_format_message(int socket, format_message_t *message) {
-    int result = 0;
-    result += send(socket, &(message->CODEREQ), sizeof(int), 0);
-    result += send(socket, &(message->ID), sizeof(int), 0);
-    result += send(socket, &(message->NUMFIL), sizeof(int), 0);
-    result += send(socket, &(message->NB), sizeof(int), 0);
-    result += send(socket, &(message->LENDATA), sizeof(int), 0);
-    result += send(socket, message->DATA, message->LENDATA, 0);
-    return result;
-}
-
-void send_error_message(int socket) {
-    format_message_t error_message;
-    error_message.CODEREQ = 31;
-    error_message.ID = 0;
-    error_message.NUMFIL = 0;
-    error_message.NB = 0;
-    error_message.LENDATA = 0;
-    error_message.DATA = NULL;
-    send_format_message(socket, &error_message);
-}
-
-
-void subscribe_request( server_t *server,client_t *client) {
-    //verification de l'inscription
-    if(check_connection(server,client->name) != 0)
-        send_message("Vous n'etes pas inscrit !!!\n",*client);
-    //reception des messages
-    format_message_t rcpt;
-    if(receive_format_message(client->socket, &rcpt) == -1) {
-        send_error_message(client->socket);
+    //Sinon non existant
+    if(thread == NULL) {
+        send_message("\e[0;35mLe fil saisie n'existe pas encore\e[0m", *client);
+        return -1;
     }
     // Générer l'adresse de multidiffusion en fonction de numfil
-    char multicastAddr[INET6_ADDRSTRLEN];
-    snprintf(multicastAddr, sizeof(multicastAddr), "FF12::%d", rcpt.NUMFIL);
+    char multicastAddr[INET_ADDRSTRLEN];
+     snprintf(multicastAddr, INET_ADDRSTRLEN, "239.0.0.%d", thread_id);
+    //definition du port en fonction de numfil également
+    int multi_port = DEFAULT_MULTI_PORT+thread_id;
+    char message[BUF_LEN];
+    sprintf(message, "Adresse de multidiffusion : %s sur le Port : %d", multicastAddr, multi_port);
 
+    send_message(message, *client);
 
-    format_message_t envoi;
-    prepare_format_message(&envoi, client->id, rcpt.NUMFIL, DEFAULT_MULTI_PORT+rcpt.NUMFIL, multicastAddr);
-
-    if (send_format_message(client->socket, &envoi) == -1) {
-        perror("Erreur lors de l'envoi du message d'abonnement");
-        // Gérer l'erreur et terminer la connexion si nécessaire
-    }
-
-    // Libérer les ressources si nécessaire
-    free(envoi.DATA);
+    return 0;
 }
 
 /*Pour lister les billets mais à optimiser
@@ -430,8 +369,8 @@ int server_activity(server_t *server)
         if ((new_socket = accept(server->socket, (struct sockaddr *)&server->address, (socklen_t *)&server->addrlen)) < 0)
             return -1;
         char ip_address[INET6_ADDRSTRLEN];
-inet_ntop(AF_INET6, &(server->address.sin6_addr), ip_address, INET6_ADDRSTRLEN);
-printf("New connection, socket fd is %d, ip is : %s, port : %d\n", new_socket, ip_address, ntohs(server->address.sin6_port));
+        inet_ntop(AF_INET6, &(server->address.sin6_addr), ip_address, INET6_ADDRSTRLEN);
+        printf("New connection, socket fd is %d, ip is : %s, port : %d\n", new_socket, ip_address, ntohs(server->address.sin6_port));
         for (int i = 0; i < MAX_CLIENT; i++)
         {
             if (server->clients[i].socket == -1)
@@ -466,6 +405,9 @@ printf("New connection, socket fd is %d, ip is : %s, port : %d\n", new_socket, i
                     if (strcmp(buf[0], "1") == 0)
                     {
                         post_message(buf[3], atoi(buf[2]), atoi(buf[1]), server, &server->clients[i]);
+                    }
+                     else if(strcmp(buf[0],"3") == 0) {
+                        subscribe_request( atoi(buf[4]), atoi(buf[3]), server, &server->clients[i]);
                     }
                 }
                 break;

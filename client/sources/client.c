@@ -151,157 +151,24 @@ void post_message(client_t *client, int thread_num)
     printf("%s\n", buff);
 }
 
-// Fonction pour envoyer un message d'abonnement au serveur
-int send_subscribe_message(int socket, subscribe_message_t *message) {
-    int result = 0;
-    result += send(socket, &(message->CODEREQ), sizeof(int), 0);
-    result += send(socket, &(message->ID), sizeof(int), 0);
-    result += send(socket, &(message->NUMFIL), sizeof(int), 0);
-    result += send(socket, &(message->NB), sizeof(int), 0);
-    result += send(socket, &(message->LENDATA), sizeof(int), 0);
-    result += send(socket, message->DATA, message->LENDATA, 0);
-    return result != -1 ? 0 : -1;
-}
-// Fonction pour créer un message d'abonnement
-subscribe_message_t *create_subscribe_message(int CODEREQ, int ID, int NUMFIL, int NB, int LENDATA, const char *DATA) {
-    subscribe_message_t *message = malloc(sizeof(subscribe_message_t));
-    if (message != NULL) {
-        message->CODEREQ = CODEREQ;
-        message->ID = ID;
-        message->NUMFIL = NUMFIL;
-        message->NB = NB;
-        message->LENDATA = LENDATA;
-        message->DATA = malloc((LENDATA + 1) * sizeof(char));
-        if (message->DATA != NULL) {
-            strncpy(message->DATA, DATA, LENDATA);
-            message->DATA[LENDATA] = '\0';
-        } else {
-            free(message);
-            message = NULL;
-        }
-    }
-    return message;
-}
-
-// Fonction pour recevoir un message de réponse au format subscribe_message_t
-subscribe_message_t *receive_subscribe_message(int socket) {
-    subscribe_message_t *message = malloc(sizeof(subscribe_message_t));
-    if (message != NULL) {
-        int result = 0;
-        int temp;
-        // Réception des champs de l'entête
-        result += recv(socket, &temp, sizeof(int), 0);
-        message->CODEREQ = ntohl(temp);
-        result += recv(socket, &temp, sizeof(int), 0);
-        message->ID = ntohl(temp);
-        result += recv(socket, &temp, sizeof(int), 0);
-        message->NUMFIL = ntohl(temp);
-        result += recv(socket, &temp, sizeof(int), 0);
-        message->NB = ntohl(temp);
-        // Réception de l'adresse de multidiffusion
-        struct in6_addr address;
-        result += recv(socket, &address, sizeof(struct in6_addr), 0);
-        if (result != -1) {
-            // Conversion de l'adresse de multidiffusion depuis le format big-endian
-            for (int i = 0; i < 16; i++) {
-                message->DATA[i] = address.s6_addr[i];
-            }
-        } else {
-            free(message);
-            message = NULL;
-        }
-    }
-    return message;
-}
-
 
 void abonnement_fil(client_t *client, int num) {
     char *message = malloc(sizeof(char) * BUF_LEN);
-    //A VOIR SI ON IMPLEMENTE COMME CA OU NON
-    // strcat(message, "4:");           
-    // strcat(message, itoa(client->id)); 
-    // strcat(message, ":");
-    // strcat(message, itoa(num));
-    // strcat(message, ":0:0:");
-
-    // Préparer le message d'abonnement
-    int CODEREQ = htons(4);
-    int ID = htons(client->id);
-    int NUMFIL = htons(num);
-    int NB = htons(0);
-    int LENDATA = 0;
-    char *DATA = "";
-    subscribe_message_t *subscribe_msg = create_subscribe_message(CODEREQ, ID, NUMFIL, NB, LENDATA, DATA);
-    if (subscribe_msg == NULL) {
-        perror("Erreur création du message d'abonnement");
-        exit(EXIT_FAILURE);
-    }
-    // Envoyer le message d'abonnement au serveur
-    if (send_subscribe_message(client->socket, subscribe_msg) != 0) {
-        perror("Erreur envoi du message d'abonnement");
-        exit(EXIT_FAILURE);
-    }
-    // Reception du message
-    subscribe_message_t *response_msg = receive_subscribe_message(client->socket);
-    if (response_msg == NULL) {
-        perror("Erreur lors de la réception de la réponse du serveur");
-        exit(EXIT_FAILURE);
-    }
+    strcat(message, "3:");           
+    strcat(message, itoa(client->id)); 
+    strcat(message, ":");
+    strcat(message, itoa(num));
+    strcat(message, ":0:0");
+    // Envoye du message d'abonnement au serveur
+    send_message(message, client->socket, client); 
+    //Reception de la réponse du serveur
+    char *buff = malloc(sizeof(char) * BUF_LEN);
+    read(client->socket, buff, BUF_LEN);
+    printf("%s\n", buff);
+    string_to_tab(buff,':');
     // Enregistrer l'adresse d'abonnement
-    client->multi_ip = strdup(response_msg->DATA);
-    client->multi_ip = response_msg->NB;
-    // S'abonner à l'adresse reçue et faire les actions nécessaires pour recevoir les messages diffusés
-    // Création du socket UDP
-    int socket_udp = socket(AF_INET6, SOCK_DGRAM, 0);
-    if (socket_udp < 0) {
-        perror("Erreur lors de la création du socket UDP");
-        exit(-1);
-    }
-    // Activation de l'option de réutilisation de l'adresse
-    int optval = 1;
-    if (setsockopt(socket_udp, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)) < 0) {
-        perror("Erreur lors de la configuration de l'option SO_REUSEADDR");
-        close(socket_udp);
-        exit(-1);
-    }
-    // Création de la structure sockaddr_in6 pour l'adresse de multidiffusion
-    struct sockaddr_in6 addr_multicast = {0};
-    addr_multicast.sin6_family = AF_INET6;
-    if (inet_pton(AF_INET6, client->multi_ip, &(addr_multicast.sin6_addr)) <= 0) {
-        perror("Erreur lors de la conversion de l'adresse IPv6 de multidiffusion");
-        close(socket_udp);
-        exit(-1);
-    }
-    addr_multicast.sin6_port = htons(client->multi_port);
-    // Liaison du socket à l'adresse de multidiffusion
-    if (bind(socket_udp, (struct sockaddr *)&addr_multicast, sizeof(addr_multicast)) < 0) {
-        perror("Erreur lors de la liaison du socket UDP à l'adresse de multidiffusion");
-        close(socket_udp);
-        exit(-1);
-    }
-    // Abonnement au groupe de multidiffusion
-    struct ipv6_mreq group = {0};
-    group.ipv6mr_multiaddr = addr_multicast.sin6_addr;
-    unsigned int ifindex = if_nametoindex("eth0");
-    if (!ifindex) {
-        perror("if_nametoindex");
-		exit(-1);
-    }
-    group.ipv6mr_interface = ifindex; // Interface sur laquelle s'abonner
-    if (setsockopt(socket_udp, IPPROTO_IPV6, IPV6_JOIN_GROUP, &group, sizeof(group)) < 0) {
-        perror("Erreur lors de l'abonnement au groupe de multidiffusion");
-        close(socket_udp);
-        exit(-1);
-    }
-    // Fermer la connexion avec le serveur et le socket UDP
-    close(client->socket);
-    close(socket_udp);
-    // Libérer la mémoire
-    free(subscribe_msg->DATA);
-    free(subscribe_msg);
-    free(response_msg->DATA);
-    free(response_msg);
-    
+    client->multi_ip = strdup(buff[1]);
+    client->multi_port = atoi(buff[3]);  
 }
 
 void menu(client_t *client) {

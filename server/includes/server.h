@@ -41,6 +41,8 @@ typedef struct client_s
     char *buffer;
     int valread;
     int actual_cmd;
+    char *multi_ip;
+    int multi_port;
 } client_t;
 
 typedef struct server_s
